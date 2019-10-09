@@ -1,0 +1,20 @@
+Basic Installation
+==================
+
+The simplest way to compile this package is:
+
+  1. `cd' to the directory containing the package's source code and type
+     `qmake -o Makefile XXX.pro' to produce Makefile.  
+
+  2. Type `mingw32_make' to compile the package.
+
+  3. You can remove the program binaries and object files from the
+     source code directory by typing `mingw32_make clean'.  
+
+  4. The software requires some DLL files, including libcrypto-1_1.dll, libpq.dll,
+     libgcc_s_dw2-1.dll, libssl-1_1.dll, libstdc++-6.dll, libwinpthread-1.dll,
+	 Qt5Core.dll, and Qt5Sql.dll. The Sqldrivers subdirectory contains the qsqlpsql.dll file.
+     You can recompile all the files, but keep the structure of the bin directory,
+     otherwise you will have to change the PRO file to reflect the new state.
+
+  
