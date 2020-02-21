@@ -1,0 +1,114 @@
+CREATE OR REPLACE FUNCTION public.clearerrlog()
+  RETURNS void AS
+$BODY$
+declare 
+begin
+delete from errlog ;
+end;
+$BODY$
+  LANGUAGE plpgsql ;  
+CREATE OR REPLACE FUNCTION public.clearerrlogbyid(id integer)
+  RETURNS void AS
+$BODY$
+declare 
+begin
+delete from errlog where gid=id;
+end;
+$BODY$
+  LANGUAGE plpgsql ;  
+CREATE OR REPLACE FUNCTION public.clearhydrusresultbyid(
+    id integer)
+  RETURNS void AS
+$BODY$
+declare 
+begin
+set constraint_exclusion=on;
+delete from a_level where gid=id;
+delete from t_level where gid=id;
+delete from nod_info where gid=id;
+delete from obs_node where gid=id;
+delete from balancetotal where gid=id;
+delete from balancelayer where gid=id;
+delete from solute1 where gid=id;
+delete from solute2 where gid=id;
+delete from solute3 where gid=id;
+delete from solute4 where gid=id;
+delete from solute5 where gid=id;
+delete from solute6 where gid=id;
+delete from solute7 where gid=id;
+delete from solute8 where gid=id;
+delete from solute9 where gid=id;
+delete from solute10 where gid=id;
+delete from errlog where gid=id;
+update selector set status='todo' where gid=id;
+end;
+$BODY$
+  LANGUAGE plpgsql;  
+CREATE OR REPLACE FUNCTION public.removehydrusinputparambyid(
+    id integer)
+  RETURNS void AS
+$BODY$
+declare 
+begin
+set constraint_exclusion=on;
+delete from selector where gid=id;
+delete from profile where gid=id;
+delete from atmosph where gid=id;
+delete from errlog where gid=id;
+end;
+$BODY$
+  LANGUAGE plpgsql ;  
+CREATE OR REPLACE FUNCTION public.getbeta(
+    x_coord real,
+    maxrootuptakedepth real,
+    bremovetop boolean DEFAULT false,
+    toplength real DEFAULT 4.0)
+  RETURNS real AS
+$BODY$
+declare 
+result real;
+begin
+if bremovetop then
+   if x_coord > -toplength then
+      return 0;
+   end if;
+end if;
+if x_coord>(-0.2)*maxrootuptakedepth then
+   result:=1.667/maxrootuptakedepth;
+elsif x_coord<(-1)* maxrootuptakedepth then
+   result:=0;
+else 
+   result:=(2.0833/maxrootuptakedepth)*(1+x_coord/(maxrootuptakedepth));
+end if;
+return result;
+end;
+$BODY$
+  LANGUAGE plpgsql;  
+CREATE OR REPLACE FUNCTION public.removehydruscasebyid(id integer)
+  RETURNS void AS
+$BODY$
+declare 
+begin
+perform removehydrusinputparambyid(id);
+perform clearhydrusresultbyid(id);
+end;
+$BODY$
+  LANGUAGE plpgsql ;
+CREATE OR REPLACE FUNCTION public.updateselectorstatus(
+    id integer,
+    bsucc boolean DEFAULT false)
+  RETURNS void AS
+$BODY$
+declare 
+ss varchar(10):='done';
+begin
+if bSucc=false then
+   ss:='todo';
+end if;
+update selector set status=ss where gid=id;
+if bSucc=true then
+   perform clearerrlogbyid(id);
+end if;
+end;
+$BODY$
+  LANGUAGE plpgsql ;

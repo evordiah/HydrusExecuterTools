@@ -1,0 +1,44 @@
+CREATE TABLE public.a_level
+(
+  tm double precision NOT NULL,
+  sv_top real,
+  sv_root real,
+  sv_bot real,
+  sr_top real,
+  sr_root real,
+  htop double precision,
+  hroot double precision,
+  hbot double precision,
+  alevel integer,
+  gid integer NOT NULL,
+  CONSTRAINT a_level_pk PRIMARY KEY (gid, tm)
+);
+CREATE INDEX a_level_gid_idx
+  ON public.a_level
+  USING btree
+  (gid);
+CREATE TABLE public.a_level_%1(
+ CONSTRAINT a_level_%2_pk PRIMARY KEY (gid, tm),
+ CONSTRAINT a_level_%3_gid_check CHECK (gid >= %4 AND gid <= %5))
+INHERITS (public.a_level) WITH (OIDS=FALSE);
+CREATE INDEX a_level_%1_gid_idx ON public.a_level_%2 USING btree(gid);
+CREATE OR REPLACE FUNCTION public.a_level_insert_trig()
+  RETURNS trigger AS
+$BODY$
+BEGIN
+   if (new.gid between %1 and %2) then 
+       insert into a_level_%3 values(new.*);
+   elsif (new.gid between %1 and %2) then 
+       insert into a_level_%3 values(new.*);
+   else
+         raise exception 'gid over the range';
+   end if;
+   return null;
+end;
+$BODY$
+  LANGUAGE plpgsql;
+CREATE TRIGGER a_level_insert
+  BEFORE INSERT
+  ON public.a_level
+  FOR EACH ROW
+  EXECUTE PROCEDURE public.a_level_insert_trig();

@@ -1,0 +1,63 @@
+CREATE TABLE public.profile
+(
+  gid integer NOT NULL,
+  n smallint NOT NULL,
+  x real,
+  matnum smallint DEFAULT 1,
+  laynum smallint DEFAULT 1,
+  beta real,
+  ah real DEFAULT 1,
+  ak real DEFAULT 1,
+  ath real DEFAULT 1,
+  hnew real,
+  conc1 real DEFAULT 0,
+  conc2 real DEFAULT 0,
+  conc3 real DEFAULT 0,
+  conc4 real DEFAULT 0,
+  conc5 real DEFAULT 0,
+  conc6 real DEFAULT 0,
+  conc7 real DEFAULT 0,
+  conc8 real DEFAULT 0,
+  conc9 real DEFAULT 0,
+  conc10 real DEFAULT 0,
+  sorb1 real DEFAULT 0,
+  sorb2 real DEFAULT 0,
+  sorb3 real DEFAULT 0,
+  sorb4 real DEFAULT 0,
+  sorb5 real DEFAULT 0,
+  sorb6 real DEFAULT 0,
+  sorb7 real DEFAULT 0,
+  sorb8 real DEFAULT 0,
+  sorb9 real DEFAULT 0,
+  sorb10 real DEFAULT 0,
+  CONSTRAINT profile_pk PRIMARY KEY (gid, n)
+);
+CREATE INDEX profile_gid_idx
+  ON public.profile
+  USING btree
+  (gid);
+ CREATE TABLE public.profile_%1(
+  CONSTRAINT profile_%2_pk PRIMARY KEY (gid, n),
+  CONSTRAINT profile_%3_gid_check CHECK (gid >= %4 AND gid <= %5))
+  INHERITS (public.profile) WITH (OIDS=FALSE);
+  CREATE INDEX profile_%1_gid_idx ON public.profile_%2 USING btree(gid);
+CREATE OR REPLACE FUNCTION public.profile_insert_trig()
+  RETURNS trigger AS
+$BODY$
+BEGIN
+   if (new.gid between %1 and %2) then 
+       insert into profile_%3 values(new.*);
+   elsif (new.gid between %1 and %2) then 
+       insert into profile_%3 values(new.*);
+   else
+         raise exception 'gid over the range';
+   end if;
+   return null;
+end;
+$BODY$
+  LANGUAGE plpgsql;
+CREATE TRIGGER profile_insert
+  BEFORE INSERT
+  ON public.profile
+  FOR EACH ROW
+  EXECUTE PROCEDURE public.profile_insert_trig();

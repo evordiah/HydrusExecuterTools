@@ -1,0 +1,49 @@
+CREATE TABLE public.obs_node
+(
+  gid integer NOT NULL,
+  tm double precision NOT NULL,
+  obsid smallint NOT NULL,
+  h double precision,
+  theta real,
+  flux double precision,
+  conc1 real,
+  conc2 real,
+  conc3 real,
+  conc4 real,
+  conc5 real,
+  conc6 real,
+  conc7 real,
+  conc8 real,
+  conc9 real,
+  conc10 real,
+  CONSTRAINT obs_node_pkey PRIMARY KEY (gid, obsid, tm)
+);
+CREATE INDEX obs_node_gid_idx
+  ON public.obs_node
+  USING btree
+  (gid);
+CREATE TABLE public.obs_node_%1(
+ CONSTRAINT obs_node_%2_pk PRIMARY KEY (gid, obsid, tm),
+ CONSTRAINT obs_node_%3_gid_check CHECK (gid >= %4 AND gid <= %5))
+ INHERITS (public.obs_node) WITH (OIDS=FALSE);
+CREATE INDEX obs_node_%1_gid_idx ON public.obs_node_%2 USING btree(gid);
+CREATE OR REPLACE FUNCTION public.obs_node_insert_trig()
+  RETURNS trigger AS
+$BODY$
+BEGIN
+   if (new.gid between %1 and %2) then 
+       insert into obs_node_%3 values(new.*);
+   elsif (new.gid between %1 and %2) then 
+       insert into obs_node_%3 values(new.*);
+   else
+         raise exception 'gid over the range';
+   end if;
+   return null;
+end;
+$BODY$
+  LANGUAGE plpgsql;  
+CREATE TRIGGER obs_node_insert
+  BEFORE INSERT
+  ON public.obs_node
+  FOR EACH ROW
+  EXECUTE PROCEDURE public.obs_node_insert_trig();

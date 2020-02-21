@@ -1,0 +1,14 @@
+<RCC>
+    <qresource prefix="/dbtemplate">
+        <file>cdbtemplate/aleveltemplate</file>
+        <file>cdbtemplate/atmosphtemplate</file>
+        <file>cdbtemplate/dbtemplate</file>
+        <file>cdbtemplate/functiontemplate</file>
+        <file>cdbtemplate/nodinfotemplate</file>
+        <file>cdbtemplate/obsnodetemplate</file>
+        <file>cdbtemplate/profiletemplate</file>
+        <file>cdbtemplate/selectortemplate</file>
+        <file>cdbtemplate/solutetemplate</file>
+        <file>cdbtemplate/tleveltemplate</file>
+    </qresource>
+</RCC>

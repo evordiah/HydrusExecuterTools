@@ -1,0 +1,64 @@
+CREATE TABLE public.atmosph
+(
+  gid integer NOT NULL,
+  tatm double precision NOT NULL,
+  prec real,
+  rsoil real,
+  rroot real,
+  hcrita real DEFAULT 100000,
+  ttop real DEFAULT 0,
+  tbot real DEFAULT 0,
+  ht real DEFAULT 0,
+  checkirrg boolean NOT NULL DEFAULT false,
+  ctop1 real DEFAULT 0,
+  ampl real DEFAULT 0,
+  ctop2 real DEFAULT 0,
+  ctop3 real DEFAULT 0,
+  ctop4 real DEFAULT 0,
+  ctop5 real DEFAULT 0,
+  ctop6 real DEFAULT 0,
+  ctop7 real DEFAULT 0,
+  ctop8 real DEFAULT 0,
+  ctop9 real DEFAULT 0,
+  ctop10 real DEFAULT 0,
+  cbot1 real DEFAULT 0,
+  cbot2 real DEFAULT 0,
+  cbot3 real DEFAULT 0,
+  cbot4 real DEFAULT 0,
+  cbot5 real DEFAULT 0,
+  cbot6 real DEFAULT 0,
+  cbot7 real DEFAULT 0,
+  cbot8 real DEFAULT 0,
+  cbot9 real DEFAULT 0,
+  cbot10 real DEFAULT 0,
+  CONSTRAINT atmosph_pk PRIMARY KEY (gid, tatm)
+);
+CREATE INDEX atmosph_gid_idx
+  ON public.atmosph
+  USING btree
+  (gid);
+CREATE TABLE public.atmosph_%1(
+ CONSTRAINT atmosph_%2_pk PRIMARY KEY (gid, tatm),
+ CONSTRAINT atmosph_%3_gid_check CHECK (gid >= %4 AND gid <= %5))
+ INHERITS (public.atmosph) WITH (OIDS=FALSE);
+ CREATE INDEX atmosph_%1_gid_idx ON public.atmosph_%2 USING btree(gid);
+CREATE OR REPLACE FUNCTION public.atmosph_insert_trig()
+  RETURNS trigger AS
+$BODY$
+BEGIN
+   if (new.gid between %1 and %2) then 
+       insert into Atmosph_%3 values(new.*);
+   elsif (new.gid between %1 and %2) then 
+       insert into Atmosph_%3 values(new.*);
+   else
+         raise exception 'gid over the range';
+   end if;
+   return null;
+end;
+$BODY$
+  LANGUAGE plpgsql;
+CREATE TRIGGER atmosph_insert
+  BEFORE INSERT
+  ON public.atmosph
+  FOR EACH ROW
+  EXECUTE PROCEDURE public.atmosph_insert_trig();

@@ -1,0 +1,66 @@
+CREATE TABLE public.nod_info
+(
+  gid integer NOT NULL,
+  node smallint NOT NULL,
+  flux real,
+  tm real NOT NULL DEFAULT 15706,
+  depth real,
+  head double precision,
+  moistrue real,
+  k real,
+  c real,
+  sink real,
+  kappa integer,
+  vdivkstop real,
+  temp real,
+  conc1 real DEFAULT 0,
+  conc2 real DEFAULT 0,
+  conc3 real DEFAULT 0,
+  conc4 real DEFAULT 0,
+  conc5 real DEFAULT 0,
+  conc6 real DEFAULT 0,
+  conc7 real DEFAULT 0,
+  conc8 real DEFAULT 0,
+  conc9 real DEFAULT 0,
+  conc10 real DEFAULT 0,
+  sorb1 real DEFAULT 0,
+  sorb2 real DEFAULT 0,
+  sorb3 real DEFAULT 0,
+  sorb4 real DEFAULT 0,
+  sorb5 real DEFAULT 0,
+  sorb6 real DEFAULT 0,
+  sorb7 real DEFAULT 0,
+  sorb8 real DEFAULT 0,
+  sorb9 real DEFAULT 0,
+  sorb10 real DEFAULT 0,
+  CONSTRAINT pk PRIMARY KEY (gid, tm, node)
+);
+CREATE INDEX nod_info_gid_idx
+  ON public.nod_info
+  USING btree
+  (gid);
+CREATE TABLE public.nod_info_%1(
+ CONSTRAINT nod_info_%2_pk PRIMARY KEY (gid, tm, node),
+ CONSTRAINT nod_info_%3_gid_check CHECK (gid >= %4 AND gid <= %5))
+ INHERITS (public.nod_info) WITH (OIDS=FALSE);
+CREATE INDEX nod_info_%1_gid_idx ON public.nod_info_%2 USING btree(gid);
+CREATE OR REPLACE FUNCTION public.nod_info_insert_trig()
+  RETURNS trigger AS
+$BODY$
+BEGIN
+   if (new.gid between %1 and %2) then 
+       insert into nod_info_%3 values(new.*);
+   elsif (new.gid between %1 and %2) then 
+       insert into nod_info_%3 values(new.*);
+   else
+         raise exception 'gid over the range';
+   end if;
+   return null;
+end;
+$BODY$
+  LANGUAGE plpgsql;  
+CREATE TRIGGER nod_info_insert
+  BEFORE INSERT
+  ON public.nod_info
+  FOR EACH ROW
+  EXECUTE PROCEDURE public.nod_info_insert_trig();

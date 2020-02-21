@@ -1,0 +1,57 @@
+CREATE TABLE public.solute%1
+(
+  gid integer NOT NULL,
+  tm double precision NOT NULL,
+  cvtop real,
+  cvbot real,
+  s_cvtop real,
+  s_cvbot real,
+  s_cvch0 real,
+  s_cvch1 real,
+  ctop real,
+  croot real,
+  cbot real,
+  cvroot real,
+  s_cvroot real,
+  s_cvneql real,
+  t_level integer,
+  cgwl real,
+  crunoff real,
+  s_crunoff real,
+  cv1 real,
+  s_cv1 real,
+  cv2 real,
+  s_cv2 real,
+  cv3 real,
+  s_cv3 real,
+  CONSTRAINT solute%2_pk PRIMARY KEY (gid, tm)
+);
+CREATE INDEX solute%1_gid_idx
+  ON public.solute%2
+  USING btree
+  (gid);
+CREATE TABLE public.solute%1_%2(
+ CONSTRAINT solute%3_%4_pk PRIMARY KEY (gid, tm),
+ CONSTRAINT solute%5_%6_gid_check CHECK (gid >= %7 AND gid <= %8))
+ INHERITS (public.solute%9) WITH (OIDS=FALSE);
+CREATE INDEX solute%1_%2_gid_idx ON public.solute%3_%4 USING btree(gid);
+CREATE OR REPLACE FUNCTION public.solute%1_insert_trig()
+  RETURNS trigger AS
+$BODY$
+BEGIN
+   if (new.gid between %2 and %3) then 
+       insert into solute%4_%5 values(new.*);
+   elsif (new.gid between %1 and %2) then 
+       insert into solute%3_%4 values(new.*);
+   else
+       raise exception 'gid over the range';
+   end if;
+   return null;
+end;
+$BODY$
+  LANGUAGE plpgsql;
+CREATE TRIGGER solute%1_insert
+  BEFORE INSERT
+  ON public.solute%2
+  FOR EACH ROW
+  EXECUTE PROCEDURE public.solute%3_insert_trig();
