@@ -47,7 +47,7 @@ CREATE TABLE public.selector
   maxit smallint DEFAULT 500,
   tolth double precision DEFAULT 0.001,
   tolh double precision DEFAULT 1,
-  walyer boolean DEFAULT true,
+  wlayer boolean DEFAULT true,
   linitw boolean DEFAULT true,
   ha double precision DEFAULT 0.000001,
   hb double precision DEFAULT 10000,
