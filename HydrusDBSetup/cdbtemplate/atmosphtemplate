@@ -9,7 +9,6 @@ CREATE TABLE public.atmosph
   ttop real DEFAULT 0,
   tbot real DEFAULT 0,
   ht real DEFAULT 0,
-  checkirrg boolean NOT NULL DEFAULT false,
   ctop1 real DEFAULT 0,
   ampl real DEFAULT 0,
   ctop2 real DEFAULT 0,
