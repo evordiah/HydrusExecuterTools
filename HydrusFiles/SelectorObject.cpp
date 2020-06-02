@@ -138,7 +138,7 @@ std::string SelectorObject::ToSqlStatement(const int gid)
     std::stringstream strbld;
     strbld<<"INSERT INTO public.selector(gid, lunit, tunit, munit, lwat, lchem,"
             "lsink, lroot, lshort, lequil, nmat, nlay, cosalpha,"
-            "maxit, tolth, tolh, walyer, linitw, ha, hb,imodel, matpar,"
+            "maxit, tolth, tolh, wlayer, linitw, ha, hb,imodel, matpar,"
             "dt, dtmin,dtmax, dmul, dmul2, itmin, itmax, mpl, tinit,tmax,"
             "lprint, nprintsteps, tprintinterval,tprint,"
             "ngrowth, tgrowth,  rootdepth,"
