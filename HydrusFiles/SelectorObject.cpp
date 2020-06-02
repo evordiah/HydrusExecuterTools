@@ -298,7 +298,7 @@ bool SelectorObject::open(int gid, QSqlQuery &qry)
 {
     QString sqlcmd=QString("select lunit, tunit, munit, lwat, lchem,"
                            "lsink, lroot, lshort, lequil, nmat, nlay, cosalpha,"
-                           "maxit, tolth, tolh, walyer, linitw, ha, hb,imodel, matpar,"
+                           "maxit, tolth, tolh, wlayer, linitw, ha, hb,imodel, matpar,"
                            "dt, dtmin,dtmax, dmul, dmul2, itmin, itmax, mpl, tinit,tmax,"
                            "lprint, nprintsteps, tprintinterval,tprint,"
                            "ngrowth, tgrowth,  rootdepth,"
