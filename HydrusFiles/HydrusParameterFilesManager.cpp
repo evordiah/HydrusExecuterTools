@@ -457,7 +457,7 @@ void HydrusParameterFilesManager::OpenResultFiles()
         {
             dic["nod_inf"]=p.absoluteFilePath(*it).toStdString();
         }
-        else if(!it->compare("obs_node.out",Qt::CaseInsensitive))
+        else if(_NObs && !it->compare("obs_node.out",Qt::CaseInsensitive))
         {
             dic["obs_node"]=p.absoluteFilePath(*it).toStdString();
         }
