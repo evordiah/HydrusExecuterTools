@@ -26,15 +26,19 @@
 #include <memory>
 #include "IHydrusParameterFileObject.h"
 
-class QSqlQuery;
+namespace pqxx
+{
+    class connection;
+    class row;
+}
 class HydrusParameterFilesManager;
 
 class SoluteObject:public IHydrusParameterFileObject
 {
     struct SoluteRecord
     {
-        SoluteRecord(const char* pline,const int NObs);
-        SoluteRecord(QSqlQuery &qry,const int NOBS);
+        SoluteRecord(const char* pline, int NObs);
+        SoluteRecord(pqxx::row &row, int NOBS);
         double Time;
         double cvTop;
         double cvBot;
@@ -57,16 +61,17 @@ class SoluteObject:public IHydrusParameterFileObject
     } ;
 public:
     SoluteObject(const std::string& filename,HydrusParameterFilesManager* parent);
-    SoluteObject(int gid, QSqlQuery &qry,HydrusParameterFilesManager* parent,const int index);
+    SoluteObject(int gid, pqxx::connection &qry,HydrusParameterFilesManager* parent, int index);
     operator bool()
     {
         return _isValid;
     }
     virtual ~SoluteObject();
     bool Save(const std::string& path);
-    std::string ToSqlStatement(const int gid);
+    bool Save(std::ostream& out);
+    std::string ToSqlStatement( int gid);
     bool open(const std::string& filename);
-    bool open(int gid,QSqlQuery& qry);
+    bool open(int gid,pqxx::connection& qry);
 private:
     bool _isValid;
     int _FileIndex;

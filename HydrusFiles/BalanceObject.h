@@ -6,7 +6,11 @@
 #include <memory>
 #include "IHydrusParameterFileObject.h"
 
-class QSqlQuery;
+namespace pqxx
+{
+    class connection;
+}
+
 class HydrusParameterFilesManager;
 
 class BalanceObject
@@ -14,7 +18,7 @@ class BalanceObject
     struct BalanceRecord
     {
         BalanceRecord(BalanceObject& parent,std::list<std::string>& part);
-        BalanceRecord(const int NLayer, const int NS);
+        BalanceRecord( int NLayer,  int NS);
         double _Time;
         double _ATot;
         std::unique_ptr<double[]> _Area;
@@ -36,16 +40,16 @@ class BalanceObject
         double _wBalT,_wBalR;
         std::unique_ptr<double[]> _cBalT;
         std::unique_ptr<double[]> _cBalR;
-        bool ParseArea(const char* pLine,const int NLayer);
-        bool ParseW_volumn(const char* pLine,const int NLayer);
-        bool ParseInflow(const char* pLine,const int NLayer);
-        bool ParsehMean(const char* pLine,const int NLayer);
-        bool ParseConcVol(const char* pLine, const int NLayer);
-        bool ParseConcVolIm(const char* pLine,const int NLayer);
-        bool ParseSorbVolIm(const char* pLine, const int NLayer);
-        bool ParseSMeanIm(const char* pLine,const int NLayer);
-        bool ParseCMean(const char* pLine, const int NLayer);
-        bool ParseCMeanIM(const char* pLine,const int NLayer);
+        bool ParseArea(const char* pLine, int NLayer);
+        bool ParseW_volumn(const char* pLine, int NLayer);
+        bool ParseInflow(const char* pLine, int NLayer);
+        bool ParsehMean(const char* pLine, int NLayer);
+        bool ParseConcVol(const char* pLine,  int NLayer);
+        bool ParseConcVolIm(const char* pLine, int NLayer);
+        bool ParseSorbVolIm(const char* pLine,  int NLayer);
+        bool ParseSMeanIm(const char* pLine, int NLayer);
+        bool ParseCMean(const char* pLine,  int NLayer);
+        bool ParseCMeanIM(const char* pLine, int NLayer);
         bool ParseTopFlux(const char* pLine);
         bool ParseBotFlux(const char* pLine);
         bool ParseWatBalT(const char* pLine);
@@ -55,16 +59,17 @@ class BalanceObject
     };
 public:
     BalanceObject(const std::string& filename,HydrusParameterFilesManager *parent);
-    BalanceObject(int gid, QSqlQuery &qry,HydrusParameterFilesManager *parent);
+    BalanceObject(int gid, pqxx::connection &qry,HydrusParameterFilesManager *parent);
     operator bool()
     {
         return _isValid;
     }
     virtual ~BalanceObject();
     bool Save(const std::string& path);
-    std::string ToSqlStatement(const int gid);
+    bool Save(std::ostream& out);
+    std::string ToSqlStatement( int gid);
     bool open(const std::string& filename);
-    bool open(int gid,QSqlQuery& qry);
+    bool open(int gid,pqxx::connection & qry);
 private:
     bool _isValid;
     int _NLayer;
@@ -74,12 +79,12 @@ private:
     HydrusParameterFilesManager *_parent;
 private:
     void WriteHead(std::ostream &out);
-    void WriteSection(std::ostream &out, BalanceRecord& lst, const int i);
+    void WriteSection(std::ostream &out, BalanceRecord& lst,  int i);
     void WriteEnd(std::ostream &out);
-    std::string ToSqlStatementPart1(const int gid);
-    std::string ToSqlStatementPart2(const int gid);
-    bool QueryTotalTable(int gid,QSqlQuery& qry);
-    bool QueryLayerTable(int gid,QSqlQuery& qry);
+    std::string ToSqlStatementPart1( int gid);
+    std::string ToSqlStatementPart2( int gid);
+    bool QueryTotalTable(int gid,pqxx::connection & qry);
+    bool QueryLayerTable(int gid,pqxx::connection & qry);
     BalanceRecord* GetRecord(double tm);
 };
 

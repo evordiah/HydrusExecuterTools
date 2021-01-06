@@ -27,23 +27,27 @@
 #include <memory>
 #include "IHydrusParameterFileObject.h"
 
-class QSqlQuery;
+namespace pqxx
+{
+    class connection;
+}
 class SelectorObject;
 
 class AtmosphObject:public IHydrusParameterFileObject
 {
 public:
     AtmosphObject(const std::string& filename,SelectorObject* sel);
-    AtmosphObject(int gid, QSqlQuery &qry,SelectorObject* sel);
+    AtmosphObject(int gid, pqxx::connection &qry,SelectorObject* sel);
     operator bool()
     {
         return _isValid;
     }
     virtual ~AtmosphObject();
     bool Save(const std::string& path);
-    std::string ToSqlStatement(const int gid);
+    bool Save(std::ostream& out);
+    std::string ToSqlStatement( int gid);
     bool open(const std::string& filename);
-    bool open(int gid,QSqlQuery& qry);
+    bool open(int gid,pqxx::connection &qry);
 private:
     bool _isValid;
     SelectorObject* _sel;
@@ -63,15 +67,15 @@ private:
     std::unique_ptr<double[]> _cBot;
 private:
     bool ParseLine(const std::string& line,const std::string& lineformat, const std::vector<void *> &values);
-    bool ParseLine(const std::string& line, const int lineindex);
-    bool ParseLine(const std::string& line, const int lineindex,const int NS);
+    bool ParseLine(const std::string& line,  int lineindex);
+    bool ParseLine(const std::string& line,  int lineindex, int NS);
     void Initial();
     char boolalpha(bool value)
     {
         return value?'t':'f';
     }
-    void SaveLine(std::ostream& out, const int lineindex);
-    void SaveLine(std::ostream& out, const int lineindex, const int NS);
+    void SaveLine(std::ostream& out,  int lineindex);
+    void SaveLine(std::ostream& out,  int lineindex,  int NS);
 };
 
 #endif // ATMOSOBJECT_H

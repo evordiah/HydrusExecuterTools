@@ -27,7 +27,7 @@ class DataBaseSQLCommands
 {
 public:
     DataBaseSQLCommands();
-    DataBaseSQLCommands(const int tablecount,const int gidcount);
+    DataBaseSQLCommands( int tablecount, int gidcount);
     std::string GetCreateDbSqlCommand(const std::string &dbname);
     std::string GetCreateTablesSqlCommand();
 protected:

@@ -1,4 +1,3 @@
-
 /******************************************************************************
  *
  *
@@ -18,231 +17,284 @@
  *
  *****************************************************************************/
 
+#include <pqxx/pqxx>
+#include <memory>
 #include <fstream>
-#include <QString>
-#include <QStringList>
 #include <sstream>
+#include <iostream>
 #include <iomanip>
-#include <QDir>
-#include <QSqlQuery>
-#include <QVariant>
+#include <filesystem>
 #include "SelectorObject.h"
 #include "FFmt.h"
 #include "HydrusParameterFilesManager.h"
 #include "ProfileObject.h"
+#include "Stringhelper.h"
 
 ProfileObject::ProfileObject(const std::string &filename, SelectorObject *sel)
 {
-    _sel=sel;
+    _sel = sel;
     Initial();
-    _isValid=open(filename);
-    if(_isValid)
+    _isValid = open(filename);
+    if (_isValid)
     {
-        _sel->_NumNP=_NumNP;
-        _sel->_NObs=_NObs;
-        if(_NObs)
+        _sel->_NumNP = _NumNP;
+        _sel->_NObs = _NObs;
+        if (_NObs)
         {
-            _sel->_iObs.reset(new int[_NObs]);
-            for(int i=0;i<_NObs;++i)
+            _sel->_iObs = std::make_unique<int[]>(_NObs);
+            for (int i = 0; i < _NObs; ++i)
             {
-                _sel->_iObs[i]=_iObs[i];
+                _sel->_iObs[i] = _iObs[i];
             }
         }
         _sel->UpdateObsInfo();
     }
 }
 
-ProfileObject::ProfileObject(int gid, QSqlQuery &qry, SelectorObject *sel)
+ProfileObject::ProfileObject(int gid, pqxx::connection &qry, SelectorObject *sel)
 {
-    _sel=sel;
+    _sel = sel;
     Initial();
-    _isValid=open(gid,qry);
-    if(_isValid)
+    _isValid = open(gid, qry);
+    if (_isValid)
     {
-        _iTemp=_sel->lChem?1:0;
-        if(!_sel->lChem || _sel->lEquil )
+        _iTemp = _sel->lChem ? 1 : 0;
+        if (!_sel->lChem || _sel->lEquil)
         {
-            _iEquil=1;
+            _iEquil = 1;
         }
         else
         {
-            _iEquil=0;
+            _iEquil = 0;
         }
     }
 }
 
 ProfileObject::~ProfileObject()
 {
-
 }
 
 bool ProfileObject::Save(const std::string &path)
 {
-    if(!_isValid)
+    if (!_isValid)
     {
         return false;
     }
-    QString p=path.c_str();
-    QDir dir(p);
-    if(!dir.exists())
+    std::filesystem::path p = path;
+    if (!std::filesystem::exists(p))
     {
-        if(!dir.mkpath(p))
+        if (!std::filesystem::create_directories(p))
         {
             return false;
         }
     }
-    p=dir.absoluteFilePath("PROFILE.DAT");
-    std::ofstream out(p.toStdString());
-    if(!out)
+    std::ofstream out((std::filesystem::absolute(p) / "PROFILE.DAT").string());
+    if (!out)
     {
         return false;
     }
     //line 0
-    out<<"Pcp_File_Version=4"<<std::endl;
+    out << "Pcp_File_Version=4" << std::endl;
     //line 1
-    out<<2<<std::endl;
+    out << 2 << std::endl;
     //line 2
-    out<<"    1  0.000000e+000  1.000000e+000  1.000000e+000"<<std::endl;
-    auto precision=out.precision();
-    out<<"    2"<<std::setw(15)<<std::fixed<<std::setprecision(6)<<fwzformat::SE3<<_x[_NumNP-1]<<"  1.000000e+000  1.000000e+000"<<std::endl;
+    out << "    1  0.000000e+000  1.000000e+000  1.000000e+000" << std::endl;
+    auto precision = out.precision();
+    out << "    2" << std::setw(15) << std::fixed << std::setprecision(6) << fwzformat::SE3 << _x[_NumNP - 1] << "  1.000000e+000  1.000000e+000" << std::endl;
     out.unsetf(std::ios_base::fixed);
     out.precision(precision);
     //line 3
-    out<<' '<<_NumNP
-      <<' '<<_NS
-     <<' '<<_iTemp
-    <<' '<<_iEquil;
-    if(!_iEquil)
+    out << ' ' << _NumNP
+        << ' ' << _NS
+        << ' ' << _iTemp
+        << ' ' << _iEquil;
+    if (!_iEquil)
     {
-        out<<" x         h      Mat  Lay      Beta           Axz            Bxz            Dxz          Temp          Conc           SConc";
+        out << " x         h      Mat  Lay      Beta           Axz            Bxz            Dxz          Temp          Conc           SConc";
     }
     else
     {
-        out<<" x         h      Mat  Lay      Beta           Axz            Bxz            Dxz          Temp          Conc ";
+        out << " x         h      Mat  Lay      Beta           Axz            Bxz            Dxz          Temp          Conc ";
     }
-    out<<std::endl;
+    out << std::endl;
     //line 4
-    if(!_NS)
+    if (!_NS)
     {
-        for(int i=0;i<_NumNP;++i)
+        for (int i = 0; i < _NumNP; ++i)
         {
-            SaveLine(out,i);
+            SaveLine(out, i);
         }
     }
     else
     {
-        for(int i=0;i<_NumNP;++i)
+        for (int i = 0; i < _NumNP; ++i)
         {
-            SaveLine(out,i,_NS);
+            SaveLine(out, i, _NS);
         }
     }
     //line 5
-    out<<std::setw(5)<<_NObs<<std::endl;
+    out << std::setw(5) << _NObs << std::endl;
     //line 6
-    for(int i=0;i<_NObs;++i)
+    for (int i = 0; i < _NObs; ++i)
     {
-        out<<std::setw(4)<<_iObs[i]<<' ';
+        out << std::setw(4) << _iObs[i] << ' ';
     }
-    out<<std::endl;
+    out << std::endl;
     out.close();
+    return true;
+}
+
+bool ProfileObject::Save(std::ostream &out)
+{
+    if (!_isValid || !out)
+    {
+        return false;
+    }
+    //line 0
+    out << "Pcp_File_Version=4" << std::endl;
+    //line 1
+    out << 2 << std::endl;
+    //line 2
+    out << "    1  0.000000e+000  1.000000e+000  1.000000e+000" << std::endl;
+    auto precision = out.precision();
+    out << "    2" << std::setw(15) << std::fixed << std::setprecision(6) << fwzformat::SE3 << _x[_NumNP - 1] << "  1.000000e+000  1.000000e+000" << std::endl;
+    out.unsetf(std::ios_base::fixed);
+    out.precision(precision);
+    //line 3
+    out << ' ' << _NumNP
+        << ' ' << _NS
+        << ' ' << _iTemp
+        << ' ' << _iEquil;
+    if (!_iEquil)
+    {
+        out << " x         h      Mat  Lay      Beta           Axz            Bxz            Dxz          Temp          Conc           SConc";
+    }
+    else
+    {
+        out << " x         h      Mat  Lay      Beta           Axz            Bxz            Dxz          Temp          Conc ";
+    }
+    out << std::endl;
+    //line 4
+    if (!_NS)
+    {
+        for (int i = 0; i < _NumNP; ++i)
+        {
+            SaveLine(out, i);
+        }
+    }
+    else
+    {
+        for (int i = 0; i < _NumNP; ++i)
+        {
+            SaveLine(out, i, _NS);
+        }
+    }
+    //line 5
+    out << std::setw(5) << _NObs << std::endl;
+    //line 6
+    for (int i = 0; i < _NObs; ++i)
+    {
+        out << std::setw(4) << _iObs[i] << ' ';
+    }
+    out << std::endl;
     return true;
 }
 
 std::string ProfileObject::ToSqlStatement(const int gid)
 {
     std::stringstream strbld;
-    strbld<<"INSERT INTO public.profile(gid, n, x, hnew, matnum, laynum,beta,ah,ak,ath";
-    if(!_NS)
+    strbld << "INSERT INTO public.profile(gid, n, x, hnew, matnum, laynum,beta,ah,ak,ath";
+    if (!_NS)
     {
-        strbld<<") values";
-        for(int i=0;i<_NumNP;++i)
+        strbld << ") values";
+        for (int i = 0; i < _NumNP; ++i)
         {
-            strbld<<"("<<gid<<","
-                 <<_n[i]<<","
-                <<_x[i]<<","
-               <<_hNew[i]<<","
-              <<_MatNum[i]<<","
-             <<_LayNum[i]<<","
-            <<_Beta[i]<<","
-            <<_Ah[i]<<","
-            <<_Ak[i]<<","
-            <<_Ath[i]<<"),";
+            strbld << "(" << gid << ","
+                   << _n[i] << ","
+                   << _x[i] << ","
+                   << _hNew[i] << ","
+                   << _MatNum[i] << ","
+                   << _LayNum[i] << ","
+                   << _Beta[i] << ","
+                   << _Ah[i] << ","
+                   << _Ak[i] << ","
+                   << _Ath[i] << "),";
         }
     }
     else
     {
-        strbld<<",";
-        for(int i=1;i<_NS;++i)
+        strbld << ",";
+        for (int i = 1; i < _NS; ++i)
         {
-            strbld<<"conc"<<i<<",";
+            strbld << "conc" << i << ",";
         }
-        if(_sel->lEquil)
+        if (_sel->lEquil)
         {
-            strbld<<"conc"<<_NS<<") values ";
+            strbld << "conc" << _NS << ") values ";
         }
         else
         {
-            strbld<<"conc"<<_NS<<",";
-            for(int i=1;i<_NS;++i)
+            strbld << "conc" << _NS << ",";
+            for (int i = 1; i < _NS; ++i)
             {
-                strbld<<"sorb"<<i<<",";
+                strbld << "sorb" << i << ",";
             }
-            strbld<<"sorb"<<_NS<<") values ";
+            strbld << "sorb" << _NS << ") values ";
         }
-        for(int i=0;i<_NumNP;++i)
+        for (int i = 0; i < _NumNP; ++i)
         {
-            strbld<<"("<<gid<<","
-                 <<_n[i]<<","
-                <<_x[i]<<","
-               <<_hNew[i]<<","
-              <<_MatNum[i]<<","
-             <<_LayNum[i]<<","
-            <<_Beta[i]<<","
-            <<_Ah[i]<<","
-            <<_Ak[i]<<","
-            <<_Ath[i]<<",";
-            double* pp=_Conc.get()+i*_NS;
-            for(int j=0;j<_NS-1;++j)
+            strbld << "(" << gid << ","
+                   << _n[i] << ","
+                   << _x[i] << ","
+                   << _hNew[i] << ","
+                   << _MatNum[i] << ","
+                   << _LayNum[i] << ","
+                   << _Beta[i] << ","
+                   << _Ah[i] << ","
+                   << _Ak[i] << ","
+                   << _Ath[i] << ",";
+            double *pp = _Conc.get() + i * _NS;
+            for (int j = 0; j < _NS - 1; ++j)
             {
-                strbld<<pp[j]<<",";
+                strbld << pp[j] << ",";
             }
-            if(_sel->lEquil)
+            if (_sel->lEquil)
             {
-                strbld<<pp[_NS-1]<<"),";
+                strbld << pp[_NS - 1] << "),";
             }
             else
             {
-                strbld<<pp[_NS-1]<<",";
-                pp=_Sorb.get()+i*_NS;
-                for(int j=0;j<_NS-1;++j)
+                strbld << pp[_NS - 1] << ",";
+                pp = _Sorb.get() + i * _NS;
+                for (int j = 0; j < _NS - 1; ++j)
                 {
-                    strbld<<pp[j]<<",";
+                    strbld << pp[j] << ",";
                 }
-                strbld<<pp[_NS-1]<<"),";
+                strbld << pp[_NS - 1] << "),";
             }
         }
     }
-    std::string sql=strbld.str();
-    sql.back()=';';
+    std::string sql = strbld.str();
+    sql.back() = ';';
     return sql;
 }
 
 bool ProfileObject::open(const std::string &filename)
 {
     std::ifstream in(filename);
-    if(!in)
+    if (!in)
     {
         return false;
     }
     std::string line;
     //line 0--HYDRUS-1D version
-    std::getline(in,line);
-    QString qs(line.c_str());
-    qs=qs.trimmed();
-    if(qs.startsWith("Pcp_File_Version="))
+    std::getline(in, line);
+    Stringhelper qs(line);
+    qs.trimmed();
+    if (qs.startsWith("Pcp_File_Version="))
     {
-        double version=qs.mid(17).toDouble();
-        if(version<4)
+        double version = std::stod(qs.str().substr(17));
+        if (version < 4)
         {
             return false;
         }
@@ -252,76 +304,76 @@ bool ProfileObject::open(const std::string &filename)
         return false;
     }
     //line 1
-    std::getline(in,line);
-    int nFix=std::stoi(line);
+    std::getline(in, line);
+    int nFix = std::stoi(line);
     //line 2
-    for(int i=0;i<nFix;++i)
+    for (int i = 0; i < nFix; ++i)
     {
-        std::getline(in,line);
+        std::getline(in, line);
     }
     //line 3
-    std::getline(in,line);
-    std::vector<void*> pValue3={&_NumNP,&_NS,&_iTemp,&_iEquil};
-    if(!ParseLine(line,"int,int,int,int",pValue3))
+    std::getline(in, line);
+    std::vector<void *> pValue3 = {&_NumNP, &_NS, &_iTemp, &_iEquil};
+    if (!ParseLine(line, "int,int,int,int", pValue3))
     {
         return false;
     }
-    if(_NS!=_sel->NS)
+    if (_NS != _sel->NS)
     {
         return false;
     }
-    if(_sel->lChem)
+    if (_sel->lChem)
     {
-        if(_iTemp!=1)
+        if (_iTemp != 1)
         {
             return false;
         }
     }
     else
     {
-        if(_iEquil!=1)
+        if (_iEquil != 1)
         {
             return false;
         }
     }
-    if(_sel->lEquil)
+    if (_sel->lEquil)
     {
-        if(_iEquil!=1)
+        if (_iEquil != 1)
         {
             return false;
         }
     }
     else
     {
-        if(_iEquil!=0)
+        if (_iEquil != 0)
         {
             return false;
         }
     }
-    _n.reset(new int[_NumNP]);
-    _x.reset(new double[_NumNP]);
-    _hNew.reset(new double[_NumNP]);
-    _MatNum.reset(new int[_NumNP]);
-    _LayNum.reset(new int[_NumNP]);
-    _Beta.reset(new double[_NumNP]);
-    _Ah.reset(new double[_NumNP]);
-    _Ak.reset(new double[_NumNP]);
-    _Ath.reset(new double[_NumNP]);
-    if(_sel->lChem)
+    _n = std::make_unique<int[]>(_NumNP);
+    _x = std::make_unique<double[]>(_NumNP);
+    _hNew = std::make_unique<double[]>(_NumNP);
+    _MatNum = std::make_unique<int[]>(_NumNP);
+    _LayNum = std::make_unique<int[]>(_NumNP);
+    _Beta = std::make_unique<double[]>(_NumNP);
+    _Ah = std::make_unique<double[]>(_NumNP);
+    _Ak = std::make_unique<double[]>(_NumNP);
+    _Ath = std::make_unique<double[]>(_NumNP);
+    if (_sel->lChem)
     {
-        _Conc.reset(new double[_NumNP*_NS]);
+        _Conc = std::make_unique<double[]>(_NumNP * _NS);
     }
-    if(!_sel->lEquil)
+    if (!_sel->lEquil)
     {
-        _Sorb.reset(new double[_NumNP*_NS]);
+        _Sorb = std::make_unique<double[]>(_NumNP * _NS);
     }
     //line 4
-    if(_NS)
+    if (_NS)
     {
-        for(int i=0;i<_NumNP;++i)
+        for (int i = 0; i < _NumNP; ++i)
         {
-            std::getline(in,line);
-            if(!ParseLine(line,i,_NS))
+            std::getline(in, line);
+            if (!ParseLine(line, i, _NS))
             {
                 return false;
             }
@@ -329,142 +381,166 @@ bool ProfileObject::open(const std::string &filename)
     }
     else
     {
-        for(int i=0;i<_NumNP;++i)
+        for (int i = 0; i < _NumNP; ++i)
         {
-            std::getline(in,line);
-            if(!ParseLine(line,i))
+            std::getline(in, line);
+            if (!ParseLine(line, i))
             {
                 return false;
             }
         }
     }
     //line 5
-    std::getline(in,line);
-    _NObs=std::stoi(line);
-    if(_NObs)
+    std::getline(in, line);
+    _NObs = std::stoi(line);
+    if (_NObs)
     {
         //line 6
-        _iObs.reset(new int[_NObs]);
-        std::getline(in,line);
-        QString s=QString(line.c_str()).simplified();
-        QStringList sl=s.split(' ');
-        bool bok;
-        for(int i=0;i<_NObs;++i)
+        _iObs = std::make_unique<int[]>(_NObs);
+        std::getline(in, line);
+        Stringhelper h(line);
+        auto sl = h.simplified().split(' ');
+        try
         {
-            _iObs[i]=sl[i].toInt(&bok);
-            if(!bok)
+            for (int i = 0; i < _NObs; ++i)
             {
-                return false;
+                _iObs[i] = std::stoi(sl[i]);
             }
+        }
+        catch (...)
+        {
+            return false;
         }
     }
     return true;
 }
 
-bool ProfileObject::open(int gid, QSqlQuery &qry)
+bool ProfileObject::open(int gid, pqxx::connection &qry)
 {
-    _NumNP=_sel->_NumNP;
-    _n.reset(new int[_NumNP]);
-    _x.reset(new double[_NumNP]);
-    _hNew.reset(new double[_NumNP]);
-    _MatNum.reset(new int[_NumNP]);
-    _LayNum.reset(new int[_NumNP]);
-    _Beta.reset(new double[_NumNP]);
-    _Ah.reset(new double[_NumNP]);
-    _Ak.reset(new double[_NumNP]);
-    _Ath.reset(new double[_NumNP]);
-    _NS=_sel->NS;
-    if(_NS)
+    _NumNP = _sel->_NumNP;
+    _n = std::make_unique<int[]>(_NumNP);
+    _x = std::make_unique<double[]>(_NumNP);
+    _hNew = std::make_unique<double[]>(_NumNP);
+    _MatNum = std::make_unique<int[]>(_NumNP);
+    _LayNum = std::make_unique<int[]>(_NumNP);
+    _Beta = std::make_unique<double[]>(_NumNP);
+    _Ah = std::make_unique<double[]>(_NumNP);
+    _Ak = std::make_unique<double[]>(_NumNP);
+    _Ath = std::make_unique<double[]>(_NumNP);
+    _NS = _sel->NS;
+    if (_NS)
     {
-        _Conc.reset(new double[_NumNP*_NS]);
-        if(!_sel->lEquil)
+        _Conc = std::make_unique<double[]>(_NumNP * _NS);
+        if (!_sel->lEquil)
         {
-            _Sorb.reset(new double[_NumNP*_NS]);
+            _Sorb = std::make_unique<double[]>(_NumNP * _NS);
         }
     }
-    _NObs=_sel->_NObs;
-    if(_NObs)
+    _NObs = _sel->_NObs;
+    if (_NObs)
     {
-        _iObs.reset(new int[_NObs]);
-        for(int i=0;i<_NObs;++i)
+        _iObs = std::make_unique<int[]>(_NObs);
+        for (int i = 0; i < _NObs; ++i)
         {
-            _iObs[i]=_sel->_iObs[i];
+            _iObs[i] = _sel->_iObs[i];
         }
     }
     std::stringstream strbld;
-    strbld<<"select n, x, hnew, matnum, laynum,beta,ah,ak,ath";
-    if(_NS)
+    strbld << "select n, x, hnew, matnum, laynum,beta,ah,ak,ath";
+    if (_NS)
     {
-        strbld<<",";
-        for(int i=1;i<_NS;++i)
+        strbld << ",";
+        for (int i = 1; i < _NS; ++i)
         {
-            strbld<<"conc"<<i<<",";
+            strbld << "conc" << i << ",";
         }
-        if(_sel->lEquil)
+        if (_sel->lEquil)
         {
-            strbld<<"conc"<<_NS<<" from profile where gid="<<gid<<" order by n;";
+            strbld << "conc" << _NS << " from profile where gid=" << gid << " order by n;";
         }
         else
         {
-            strbld<<"conc"<<_NS<<",";
-            for(int i=1;i<_NS;++i)
+            strbld << "conc" << _NS << ",";
+            for (int i = 1; i < _NS; ++i)
             {
-                strbld<<"sorb"<<i<<",";
+                strbld << "sorb" << i << ",";
             }
-            strbld<<"sorb"<<_NS<<" from profile where gid="<<gid<<" order by n;";
+            strbld << "sorb" << _NS << " from profile where gid=" << gid << " order by n;";
         }
-        if(!qry.exec(strbld.str().c_str()))
+        try
         {
-            return false;
-        }
-        int j=0;
-        while (qry.next())
-        {
-            _n[j]=qry.value(0).toInt();
-            _x[j]=qry.value(1).toDouble();
-            _hNew[j]=qry.value(2).toDouble();
-            _MatNum[j]=qry.value(3).toInt();
-            _LayNum[j]=qry.value(4).toInt();
-            _Beta[j]=qry.value(5).toDouble();
-            _Ah[j]=qry.value(6).toDouble();
-            _Ak[j]=qry.value(7).toDouble();
-            _Ath[j]=qry.value(8).toDouble();
-            double* pp=_Conc.get()+j*_NS;
-            for(int i=0;i<_NS;++i)
+            pqxx::work w(qry);
+            pqxx::result r = w.exec(strbld.str());
+            w.commit();
+            if (r.empty())
             {
-                pp[i]=qry.value(9+i).toDouble();
+                return false;
             }
-            if(!_sel->lEquil)
+            int j = 0;
+            for (auto it = r.begin(); it != r.end(); ++it)
             {
-                pp=_Sorb.get()+j*_NS;
-                for(int i=0;i<_NS;++i)
+                _n[j] = it[0].as<int>();
+                _x[j] = it[1].as<double>();
+                _hNew[j] = it[2].as<double>();
+                _MatNum[j] = it[3].as<int>();
+                _LayNum[j] = it[4].as<int>();
+                _Beta[j] = it[5].as<double>();
+                _Ah[j] = it[6].as<double>();
+                _Ak[j] = it[7].as<double>();
+                _Ath[j] = it[8].as<double>();
+                double *pp = _Conc.get() + j * _NS;
+                for (int i = 0; i < _NS; ++i)
                 {
-                    pp[i]=qry.value(9+_NS+i).toDouble();
+                    pp[i] = it[9 + i].as<double>();
                 }
+                if (!_sel->lEquil)
+                {
+                    pp = _Sorb.get() + j * _NS;
+                    for (int i = 0; i < _NS; ++i)
+                    {
+                        pp[i] = it[9 + _NS + i].as<double>();
+                    }
+                }
+                j++;
             }
-            j++;
+        }
+        catch (std::exception &e)
+        {
+            std::cerr << e.what() << std::endl;
+            return false;
         }
     }
     else
     {
-        strbld<<" from profile where gid="<<gid<<" order by n;";
-        if(!qry.exec(strbld.str().c_str()))
+        strbld << " from profile where gid=" << gid << " order by n;";
+        try
         {
-            return false;
+            pqxx::work w(qry);
+            pqxx::result r = w.exec(strbld.str());
+            w.commit();
+            if (r.empty())
+            {
+                return false;
+            }
+            int j = 0;
+            for (auto it = r.begin(); it != r.end(); ++it)
+            {
+                _n[j] = it[0].as<int>();
+                _x[j] = it[1].as<double>();
+                _hNew[j] = it[2].as<double>();
+                _MatNum[j] = it[3].as<int>();
+                _LayNum[j] = it[4].as<int>();
+                _Beta[j] = it[5].as<double>();
+                _Ah[j] = it[6].as<double>();
+                _Ak[j] = it[7].as<double>();
+                _Ath[j] = it[8].as<double>();
+                j++;
+            }
         }
-        int j=0;
-        while (qry.next())
+        catch (std::exception &e)
         {
-            _n[j]=qry.value(0).toInt();
-            _x[j]=qry.value(1).toDouble();
-            _hNew[j]=qry.value(2).toDouble();
-            _MatNum[j]=qry.value(3).toInt();
-            _LayNum[j]=qry.value(4).toInt();
-            _Beta[j]=qry.value(5).toDouble();
-            _Ah[j]=qry.value(6).toDouble();
-            _Ak[j]=qry.value(7).toDouble();
-            _Ath[j]=qry.value(8).toDouble();
-            j++;
+            std::cerr << e.what() << std::endl;
+            return false;
         }
     }
     return true;
@@ -472,105 +548,74 @@ bool ProfileObject::open(int gid, QSqlQuery &qry)
 
 bool ProfileObject::ParseLine(const std::string &line, const std::string &lineformat, const std::vector<void *> &values)
 {
-    QString l(line.c_str());
-    l=l.simplified();
-    QStringList lst=l.split(' ');
-    QString f(lineformat.c_str());
-    QStringList format=f.split(',');
-    if(lst.size()<format.size())
+    Stringhelper l(line);
+    l.simplified();
+    auto lst = l.split(' ');
+    Stringhelper f(lineformat);
+    auto format = f.split(',');
+    if (lst.size() < format.size())
     {
         return false;
     }
-    for(int i=0;i<format.size();++i)
+    try
     {
-        if (format[i]=="bool")
+        for (size_t i = 0; i < format.size(); ++i)
         {
-            if(lst[i]=="f" || lst[i]=="F")
+            if (format[i] == "bool")
             {
-                *reinterpret_cast<bool*>(values[i])=false;
+                if (lst[i] == "f" || lst[i] == "F")
+                {
+                    *reinterpret_cast<bool *>(values[i]) = false;
+                }
+                else if (lst[i] == "t" || lst[i] == "T")
+                {
+                    *reinterpret_cast<bool *>(values[i]) = true;
+                }
+                else
+                {
+                    return false;
+                }
             }
-            else if(lst[i]=="t" || lst[i]=="T")
+            else if (format[i] == "int")
             {
-                *reinterpret_cast<bool*>(values[i])=true;
+                *reinterpret_cast<int *>(values[i]) = std::stoi(lst[i]);
+            }
+            else if (format[i] == "double")
+            {
+                *reinterpret_cast<double *>(values[i]) = std::stod(lst[i]);
             }
             else
             {
                 return false;
             }
         }
-        else if(format[i]=="int")
-        {
-            bool bok;
-            *reinterpret_cast<int*>(values[i])=lst[i].toInt(&bok);
-            if(!bok)
-            {
-                return false;
-            }
-        }
-        else if(format[i]=="double")
-        {
-            bool bok;
-            *reinterpret_cast<double*>(values[i])=lst[i].toDouble(&bok);
-            if(!bok)
-            {
-                return false;
-            }
-        }
-        else
-        {
-            return false;
-        }
     }
+    catch (...)
+    {
+        return false;
+    }
+
     return true;
 }
 
 bool ProfileObject::ParseLine(const std::string &line, const int lineindex)
 {
-    QString s=QString(line.c_str()).simplified();
-    QStringList sl=s.split(' ');
-    bool bok;
-    _n[lineindex]=sl[0].toInt(&bok);
-    if(!bok)
+    Stringhelper s(line);
+    s.simplified();
+    auto sl = s.split(' ');
+    try
     {
-        return false;
+        _n[lineindex] = std::stoi(sl[0]);
+        _x[lineindex] = std::stod(sl[1]);
+        _hNew[lineindex] = std::stod(sl[2]);
+        _MatNum[lineindex] = std::stod(sl[3]);
+        _LayNum[lineindex] = std::stod(sl[4]);
+        _Beta[lineindex] = std::stod(sl[5]);
+        _Ah[lineindex] = std::stod(sl[6]);
+        _Ak[lineindex] = std::stod(sl[7]);
+        _Ath[lineindex] = std::stod(sl[8]);
     }
-    _x[lineindex]=sl[1].toDouble(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-    _hNew[lineindex]=sl[2].toDouble(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-    _MatNum[lineindex]=sl[3].toInt(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-    _LayNum[lineindex]=sl[4].toInt(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-    _Beta[lineindex]=sl[5].toDouble(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-    _Ah[lineindex]=sl[6].toDouble(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-    _Ak[lineindex]=sl[7].toDouble(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-    _Ath[lineindex]=sl[8].toDouble(&bok);
-    if(!bok)
+    catch (...)
     {
         return false;
     }
@@ -579,135 +624,95 @@ bool ProfileObject::ParseLine(const std::string &line, const int lineindex)
 
 bool ProfileObject::ParseLine(const std::string &line, const int lineindex, const int NS)
 {
-    QString s=QString(line.c_str()).simplified();
-    QStringList sl=s.split(' ');
-    bool bok;
-    _n[lineindex]=sl[0].toInt(&bok);
-    if(!bok)
+    Stringhelper s(line);
+    s.simplified();
+    auto sl = s.split(' ');
+    try
     {
-        return false;
-    }
-    _x[lineindex]=sl[1].toDouble(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-    _hNew[lineindex]=sl[2].toDouble(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-    _MatNum[lineindex]=sl[3].toInt(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-    _LayNum[lineindex]=sl[4].toInt(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-    _Beta[lineindex]=sl[5].toDouble(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-    _Ah[lineindex]=sl[6].toDouble(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-    _Ak[lineindex]=sl[7].toDouble(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-    _Ath[lineindex]=sl[8].toDouble(&bok);
-    if(!bok)
-    {
-        return false;
-    }
-
-    double *pp=_Conc.get()+lineindex*_NS;
-    for(int i=0;i<_NS;++i)
-    {
-        pp[i]=sl[10+i].toDouble(&bok);
-        if(!bok)
+        _n[lineindex] = std::stoi(sl[0]);
+        _x[lineindex] = std::stod(sl[1]);
+        _hNew[lineindex] = std::stod(sl[2]);
+        _MatNum[lineindex] = std::stod(sl[3]);
+        _LayNum[lineindex] = std::stod(sl[4]);
+        _Beta[lineindex] = std::stod(sl[5]);
+        _Ah[lineindex] = std::stod(sl[6]);
+        _Ak[lineindex] = std::stod(sl[7]);
+        _Ath[lineindex] = std::stod(sl[8]);
+        double *pp = _Conc.get() + lineindex * _NS;
+        for (int i = 0; i < _NS; ++i)
         {
-            return false;
+            pp[i] = std::stod(sl[10 + i]);
         }
-    }
-    if(!_sel->lEquil)
-    {
-        pp=_Sorb.get()+lineindex*_NS;
-        for(int i=0;i<NS;++i)
+        if (!_sel->lEquil)
         {
-            pp[i]=sl[10+NS+i].toDouble(&bok);
-            if(!bok)
+            pp = _Sorb.get() + lineindex * _NS;
+            for (int i = 0; i < NS; ++i)
             {
-                return false;
+                pp[i] = std::stod(sl[10 + NS + i]);
             }
         }
+    }
+    catch (...)
+    {
+        return false;
     }
     return true;
 }
 
 void ProfileObject::Initial()
 {
-
 }
 
 void ProfileObject::SaveLine(std::ostream &out, const int lineindex)
 {
-    auto precision=out.precision();
-    out<<std::setw(4)<<_n[lineindex];
-    out<<std::fixed<<std::setprecision(6);
-    out<<std::setw(15)<<fwzformat::SE3<<_x[lineindex];
-    out<<std::setw(15)<<fwzformat::SE3<<_hNew[lineindex];
+    auto precision = out.precision();
+    out << std::setw(4) << _n[lineindex];
+    out << std::fixed << std::setprecision(6);
+    out << std::setw(15) << fwzformat::SE3 << _x[lineindex];
+    out << std::setw(15) << fwzformat::SE3 << _hNew[lineindex];
     out.unsetf(std::ios_base::fixed);
-    out<<std::setw(4)<<_MatNum[lineindex];
-    out<<std::setw(4)<<_LayNum[lineindex];
-    out<<std::fixed<<std::setprecision(6);
-    out<<std::setw(15)<<fwzformat::SE3<<_Beta[lineindex];
-    out<<std::setw(15)<<fwzformat::SE3<<_Ah[lineindex];
-    out<<std::setw(15)<<fwzformat::SE3<<_Ak[lineindex];
-    out<<std::setw(15)<<fwzformat::SE3<<_Ath[lineindex];
+    out << std::setw(4) << _MatNum[lineindex];
+    out << std::setw(4) << _LayNum[lineindex];
+    out << std::fixed << std::setprecision(6);
+    out << std::setw(15) << fwzformat::SE3 << _Beta[lineindex];
+    out << std::setw(15) << fwzformat::SE3 << _Ah[lineindex];
+    out << std::setw(15) << fwzformat::SE3 << _Ak[lineindex];
+    out << std::setw(15) << fwzformat::SE3 << _Ath[lineindex];
     out.unsetf(std::ios_base::fixed);
     out.precision(precision);
-    out<<std::endl;
+    out << std::endl;
 }
 
-void ProfileObject::SaveLine(std::ostream &out,const int lineindex,const int NS)
+void ProfileObject::SaveLine(std::ostream &out, const int lineindex, const int NS)
 {
-    auto precision=out.precision();
-    out<<std::setw(4)<<_n[lineindex];
-    out<<std::fixed<<std::setprecision(6);
-    out<<std::setw(15)<<fwzformat::SE3<<_x[lineindex];
-    out<<std::setw(15)<<fwzformat::SE3<<_hNew[lineindex];
+    auto precision = out.precision();
+    out << std::setw(4) << _n[lineindex];
+    out << std::fixed << std::setprecision(6);
+    out << std::setw(15) << fwzformat::SE3 << _x[lineindex];
+    out << std::setw(15) << fwzformat::SE3 << _hNew[lineindex];
     out.unsetf(std::ios_base::fixed);
-    out<<std::setw(4)<<_MatNum[lineindex];
-    out<<std::setw(4)<<_LayNum[lineindex];
-    out<<std::fixed<<std::setprecision(6);
-    out<<std::setw(15)<<fwzformat::SE3<<_Beta[lineindex];
-    out<<std::setw(15)<<fwzformat::SE3<<_Ah[lineindex];
-    out<<std::setw(15)<<fwzformat::SE3<<_Ak[lineindex];
-    out<<std::setw(15)<<fwzformat::SE3<<_Ath[lineindex];
-    out<<std::setw(15)<<fwzformat::SE3<<20.0;
-    double *pp=_Conc.get()+lineindex*NS;
-    for(int i=0;i<NS;++i)
+    out << std::setw(4) << _MatNum[lineindex];
+    out << std::setw(4) << _LayNum[lineindex];
+    out << std::fixed << std::setprecision(6);
+    out << std::setw(15) << fwzformat::SE3 << _Beta[lineindex];
+    out << std::setw(15) << fwzformat::SE3 << _Ah[lineindex];
+    out << std::setw(15) << fwzformat::SE3 << _Ak[lineindex];
+    out << std::setw(15) << fwzformat::SE3 << _Ath[lineindex];
+    out << std::setw(15) << fwzformat::SE3 << 20.0;
+    double *pp = _Conc.get() + lineindex * NS;
+    for (int i = 0; i < NS; ++i)
     {
-        out<<std::setw(15)<<fwzformat::SE3<<pp[i];
+        out << std::setw(15) << fwzformat::SE3 << pp[i];
     }
-    if(!_sel->lEquil)
+    if (!_sel->lEquil)
     {
-        pp=_Sorb.get()+lineindex*NS;
-        for(int i=0;i<NS;++i)
+        pp = _Sorb.get() + lineindex * NS;
+        for (int i = 0; i < NS; ++i)
         {
-            out<<std::setw(15)<<fwzformat::SE3<<pp[i];
+            out << std::setw(15) << fwzformat::SE3 << pp[i];
         }
     }
     out.unsetf(std::ios_base::fixed);
     out.precision(precision);
-    out<<std::endl;
+    out << std::endl;
 }
-

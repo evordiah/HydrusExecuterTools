@@ -31,57 +31,77 @@ namespace fwzformat
 {
     struct ffmt_proxy
     {
-        explicit ffmt_proxy(std::ostream & os):os(os),_exponentwidth(0),_bFortranFormat(false)
+        explicit ffmt_proxy(std::ostream &os) : os(os), _exponentwidth(0), _bFortranFormat(false)
         {
         }
-        explicit ffmt_proxy(std::ostream& os,int exponetwidth,bool bFortranFormat=true):os(os),
-            _exponentwidth(exponetwidth),_bFortranFormat(bFortranFormat)
+        explicit ffmt_proxy(std::ostream &os, int exponetwidth, bool bFortranFormat = true) : os(os),
+                                                                                              _exponentwidth(exponetwidth), _bFortranFormat(bFortranFormat)
         {
         }
-        template<typename Rhs>
-        friend std::ostream & operator<<(ffmt_proxy const& q,
-                                         Rhs const& rhs)
+        template <typename Rhs>
+        friend std::ostream &operator<<(ffmt_proxy const &q,
+                                        Rhs const &rhs)
         {
             return q.os << rhs;
         }
 
-        friend std::ostream & operator<<(ffmt_proxy const& q,
-                                         std::string const& rhs)
+        friend std::ostream &operator<<(ffmt_proxy const &q,
+                                        std::string const &rhs)
         {
             return q.os << "'" << rhs << "'";
         }
 
-        friend std::ostream & operator<<(ffmt_proxy const& q,
-                                         char const* rhs)
+        friend std::ostream &operator<<(ffmt_proxy const &q,
+                                        char const *rhs)
         {
             return q.os << "'" << rhs << "'";
         }
 
         friend std::ostream &operator<<(const ffmt_proxy &q, const float &rhs);
         friend std::ostream &operator<<(const ffmt_proxy &q, const double &rhs);
+
     private:
-        std::ostream & os;
+        std::ostream &os;
         int _exponentwidth;
         bool _bFortranFormat;
     };
 
-    extern struct quote_creator { } quoter;
-    extern struct fortranE2_creator {} fortranE2;
-    extern struct fortranE3_creator {} fortranE3;
-    extern struct SE3_creator {} SE3;
-    extern struct SqlValueExpress_creator {} SqlValueExpression;
-    ffmt_proxy operator<<(std::ostream & os, quote_creator);
-    ffmt_proxy operator<<(std::ostream & os, fortranE2_creator);
-    ffmt_proxy operator<<(std::ostream & os, fortranE3_creator);
-    ffmt_proxy operator<<(std::ostream & os, SE3_creator);
-    ffmt_proxy operator<<(std::ostream& os,SqlValueExpress_creator);
+    //extern struct quote_creator { } quoter;
+    //extern struct fortranE2_creator {} fortranE2;
+    //extern struct fortranE3_creator {} fortranE3;
+    //extern struct SE3_creator {} SE3;
+    //extern struct SqlValueExpress_creator {} SqlValueExpression;
+    struct quote_creator
+    {
+    };
+    struct fortranE2_creator
+    {
+    };
+    struct fortranE3_creator
+    {
+    };
+    struct SE3_creator
+    {
+    };
+    struct SqlValueExpress_creator
+    {
+    };
+    extern struct quote_creator quoter;
+    extern struct fortranE2_creator fortranE2;
+    extern struct fortranE3_creator fortranE3;
+    extern struct SE3_creator SE3;
+    extern struct SqlValueExpress_creator SqlValueExpression;
+    ffmt_proxy operator<<(std::ostream &os, quote_creator);
+    ffmt_proxy operator<<(std::ostream &os, fortranE2_creator);
+    ffmt_proxy operator<<(std::ostream &os, fortranE3_creator);
+    ffmt_proxy operator<<(std::ostream &os, SE3_creator);
+    ffmt_proxy operator<<(std::ostream &os, SqlValueExpress_creator);
     std::ostream &operator<<(const ffmt_proxy &q, const float &rhs);
     std::ostream &operator<<(const ffmt_proxy &q, const double &rhs);
-    template<typename Rhs>
-    std::ostream & operator<<(ffmt_proxy const& q,Rhs const& rhs);
-    std::ostream & operator<<(ffmt_proxy const& q,std::string const& rhs);
-    std::ostream & operator<<(ffmt_proxy const& q,char const* rhs);
-}
-
+    template <typename Rhs>
+    std::ostream &operator<<(ffmt_proxy const &q, Rhs const &rhs);
+    std::ostream &operator<<(ffmt_proxy const &q, std::string const &rhs);
+    std::ostream &operator<<(ffmt_proxy const &q, char const *rhs);
+} // namespace fwzformat
 
 #endif // FFMT_H

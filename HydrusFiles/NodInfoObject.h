@@ -27,14 +27,18 @@
 #include <memory>
 #include "IHydrusParameterFileObject.h"
 
-class QSqlQuery;
+namespace pqxx
+{
+    class connection;
+    class row;
+}
 class HydrusParameterFilesManager;
 class NodInfoObject:public IHydrusParameterFileObject
 {
     struct NodinfoRecord
     {
-        NodinfoRecord(const char* pline,const int NS);
-        NodinfoRecord(QSqlQuery &qry,const int NS);
+        NodinfoRecord(const char* pline, int NS);
+        NodinfoRecord(pqxx::row &row, int NS);
         int Node;
         double Depth;
         double Head;
@@ -51,21 +55,22 @@ class NodInfoObject:public IHydrusParameterFileObject
     } ;
 public:
     NodInfoObject(const std::string& filename, HydrusParameterFilesManager *parent);
-    NodInfoObject(int gid, QSqlQuery &qry,HydrusParameterFilesManager *parent);
+    NodInfoObject(int gid, pqxx::connection &qry,HydrusParameterFilesManager *parent);
     operator bool()
     {
         return _isValid;
     }
     virtual ~NodInfoObject();
     bool Save(const std::string& path);
-    std::string ToSqlStatement(const int gid);
+    bool Save(std::ostream& out);
+    std::string ToSqlStatement( int gid);
     bool open(const std::string& filename);
-    bool open(int gid,QSqlQuery& qry);
+    bool open(int gid,pqxx::connection& qry);
 private:
     void WriteHead(std::ostream& out);
-    void WriteSection(std::ostream &out, double time,std::list<std::unique_ptr<NodinfoRecord>>& lst,const int NS);
-    void SaveLine(std::ostream&out,const NodinfoRecord& nrect,const int NS);
-    std::string ToSqlStatement(const NodinfoRecord& nrect,const int NS);
+    void WriteSection(std::ostream &out, double time,std::list<std::unique_ptr<NodinfoRecord>>& lst, int NS);
+    void SaveLine(std::ostream&out,const NodinfoRecord& nrect, int NS);
+    std::string ToSqlStatement(const NodinfoRecord& nrect, int NS);
 private:
     bool _isValid;
     std::map<double,std::list<std::unique_ptr<NodinfoRecord>>> _Recs;

@@ -27,7 +27,10 @@
 #include <memory>
 #include "IHydrusParameterFileObject.h"
 
-class QSqlQuery;
+namespace pqxx
+{
+    class connection;
+}
 class HydrusParameterFilesManager;
 class AtmosphObject;
 class ProfileObject;
@@ -36,16 +39,17 @@ class SelectorObject:public IHydrusParameterFileObject
 {
 public:
     SelectorObject(const std::string& filename,HydrusParameterFilesManager* parent);
-    SelectorObject(int gid, QSqlQuery &qry,HydrusParameterFilesManager* parent);
+    SelectorObject(int gid, pqxx::connection &qry,HydrusParameterFilesManager* parent);
     operator bool()
     {
         return _isValid;
     }
     virtual ~SelectorObject();
     bool Save(const std::string& path);
-    std::string ToSqlStatement(const int gid);
+    bool Save(std::ostream& out);
+    std::string ToSqlStatement( int gid);
     bool open(const std::string& filename);
-    bool open(int gid,QSqlQuery& qry);
+    bool open(int gid,pqxx::connection& qry);
 private:
     bool _isValid;
     HydrusParameterFilesManager* _parent;

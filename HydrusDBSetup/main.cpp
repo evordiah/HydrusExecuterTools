@@ -1,4 +1,3 @@
-
 /****************************************************************************** 
  *
  *
@@ -18,33 +17,18 @@
  *
  *****************************************************************************/
 
-#include <QCoreApplication>
-#include <QtSql/QSqlDatabase>
-#include <QtSql/QSqlQuery>
 #include <string>
 #include <tclap/CmdLine.h>
-#include <QUuid>
 #include <memory>
 #include <future>
+#include "Stringhelper.h"
 #include "databasesqlcommands.h"
+#include "pqdbconn.h"
 
 bool _bFinished;
 
-bool InitialDB(const std::string& strhost,const std::string& strdbname,const std::string& strusername,const std::string& strpassword,QSqlDatabase& db)
-{
-    db.setHostName(strhost.c_str());
-    db.setUserName(strusername.c_str());
-    db.setDatabaseName(strdbname.c_str());
-    db.setPassword(strpassword.c_str());
-    if(!db.open())
-    {
-        std::cout<<"Can't connect database!"<<std::endl;
-        return false;
-    }
-    return true;
-}
-
-bool ParseCmdVars(int argc, char *argv[],QSqlDatabase& db,std::string& strnewdbname,int& tcount,int& gidcount)
+bool ParseCmdVars(int argc, char *argv[],pqDBConn& conn,
+                  std::string& strnewdbname,int& tcount,int& gidcount)
 {
     using namespace TCLAP;
 
@@ -54,7 +38,7 @@ bool ParseCmdVars(int argc, char *argv[],QSqlDatabase& db,std::string& strnewdbn
     ValueArg<std::string> newdbname("D","newdatabasename","the database name to set up",true,"","string");
     ValueArg<std::string> user("U","username","the username",true,"","string");
     ValueArg<std::string> password("P","password","the password",true,"","string");
-    ValueArg<std::string> host("H","hostname","the host name",false,"localhost","string");
+    ValueArg<std::string> host("H","hostname","the host name, for example [127.0.0.1][:5432] or [localhost][:5432]",false,"localhost:5432","string");
     cmd.add(dbname);
     cmd.add(newdbname);
     cmd.add(user);
@@ -67,52 +51,90 @@ bool ParseCmdVars(int argc, char *argv[],QSqlDatabase& db,std::string& strnewdbn
     cmd.add(gcount);
 
     cmd.parse(argc,argv);
-
-    if(!InitialDB(host.getValue(),dbname.getValue(),user.getValue(),password.getValue(),db))
+    std::string hostname=host.getValue();
+    std::string port;
+    auto pos=hostname.find(':');
+    if(pos!=std::string::npos)
     {
+        port=hostname.substr(pos+1);
+        hostname.erase(pos);
+    }
+    Stringhelper sh(hostname);
+    hostname=sh.trimmed().str();
+    if(hostname.empty())
+    {
+        hostname="localhost";
+    }
+    Stringhelper sp(port);
+    port=sp.trimmed().str();
+    if(port.empty())
+    {
+        port="5432";
+    }
+    else
+    {
+        for(char c:port)
+        {
+            if(!std::isdigit(c))
+            {
+                std::cerr<<port<<" is not a valid port number!"<<std::endl;
+                return false;
+            }
+        }
+    }
+    conn.DBName(dbname.getValue());
+    conn.UserName(user.getValue());
+    conn.HostName(hostname);
+    conn.Port(port);
+    conn.PassWord(password.getValue());
+    if(!conn.GetConn())
+    {
+        std::cout<<"Can't connect database!"<<std::endl;
         return false;
     }
-
     tcount=tablecount.getValue();
     gidcount=gcount.getValue();
     strnewdbname=newdbname.getValue();
     return true;
 }
 
-std::string GetValidConName()
-{
-    return QUuid::createUuid().toString().toStdString();
-}
-
-bool ExecuteSqlCmd(QSqlQuery* qry,const std::string& sqlcmd)
+bool ExecuteSqlCmd(pqxx::connection* conn,const std::string& sqlcmd)
 {
     bool result=false;
-    if(qry->exec(sqlcmd.c_str()))
+    if(!conn)
     {
+        return result;
+    }
+    try
+    {
+        pqxx::nontransaction work(*conn);
+        work.exec(sqlcmd);
         result=true;
+    }
+    catch (std::exception& e)
+    {
+        std::cerr<<e.what()<<std::endl;
     }
     _bFinished=true;
     return result;
 }
 
-void DropDatabase(const std::string& sqlcmd,QSqlDatabase& db)
+void DropDatabase(const std::string& sqlcmd,pqxx::connection* conn)
 {
-    QSqlQuery qry(db);
-    ExecuteSqlCmd(&qry,sqlcmd);
+    ExecuteSqlCmd(conn,sqlcmd);
 }
 
-bool CreateDatabase(const std::string& sqlcmd,QSqlDatabase& db,std::string& strnewdbname)
+bool CreateDatabase(const std::string& sqlcmd,pqxx::connection* conn,std::string& strnewdbname)
 {
     _bFinished=false;
     bool result=false;
     std::string message="The DataBase "+strnewdbname;
     message+=" is creating, please wait ";
     std::cout<<message;
-    QSqlQuery qry(db);
 
     try
     {
-        std::future<bool> v=std::async(std::launch::async,ExecuteSqlCmd,&qry,sqlcmd);
+        std::future<bool> v=std::async(std::launch::async,ExecuteSqlCmd,conn,sqlcmd);
 
         int i=0;
         while (!_bFinished)
@@ -147,18 +169,17 @@ bool CreateDatabase(const std::string& sqlcmd,QSqlDatabase& db,std::string& strn
     return result;
 }
 
-bool CreateScheme(const std::string& sqlcmd,QSqlDatabase& db)
+bool CreateScheme(const std::string& sqlcmd,pqxx::connection* conn)
 {
     _bFinished=false;
     bool result=false;
-    std::string message="The Scheme of DataBase "+db.databaseName().toStdString();
+    std::string message="The Scheme of DataBase "+std::string(conn->dbname());
     message+=" is creating, please wait ";
     std::cout<<message;
-    QSqlQuery qry(db);
 
     try
     {
-        std::future<bool> v=std::async(std::launch::async,ExecuteSqlCmd,&qry,sqlcmd);
+        std::future<bool> v=std::async(std::launch::async,ExecuteSqlCmd,conn,sqlcmd);
 
         int i=0;
         while (!_bFinished)
@@ -181,13 +202,13 @@ bool CreateScheme(const std::string& sqlcmd,QSqlDatabase& db)
     if(!result)
     {
         std::cout<<"\r";
-        std::cout<<"Fail to Create Scheme of DataBase "<<db.databaseName().toStdString()
+        std::cout<<"Fail to Create Scheme of DataBase "<<std::string(conn->dbname())
                 <<"! Please consult the DBA!"<<std::endl;
     }
     else
     {
         std::cout<<"\r";
-        std::cout<<"Scheme of DataBase "<<db.databaseName().toStdString()<<" has been created successfully!"
+        std::cout<<"Scheme of DataBase "<<std::string(conn->dbname())<<" has been created successfully!"
                 <<std::endl;
     }
     return result;
@@ -197,18 +218,14 @@ int main(int argc, char *argv[])
 {
     using namespace std;
 
-    QCoreApplication _coreApp(argc,argv);
-    
-    QSqlDatabase db=QSqlDatabase::addDatabase("QPSQL",GetValidConName().c_str());
     string newdatabasename;
     int subtablecount;
     int gidcount;
     bool bPartition = false;
-
-    if(!ParseCmdVars(argc,argv,db,newdatabasename,subtablecount,gidcount))
+    pqDBConn& conn=*DBConnManager::GetInstance().GetConnection();
+    if(!ParseCmdVars(argc,argv,conn,newdatabasename,subtablecount,gidcount))
     {
         std::cout<<"\n*********The parameters given is not valid. Exit now.*********\n\n";
-        db.close();
         return 0;
     }
 
@@ -226,51 +243,41 @@ int main(int argc, char *argv[])
 
     if(bPartition)
     {
-        pCmds.reset(new DataBaseSQLCommands(subtablecount,gidcount));
+        pCmds = std::make_unique<DataBaseSQLCommands>(subtablecount,gidcount);
     }
     else
     {
-        pCmds.reset(new DataBaseSQLCommands());
+        pCmds = std::make_unique<DataBaseSQLCommands>();
     }
 
     string sqldbcreatingcmd=pCmds->GetCreateDbSqlCommand(newdatabasename);
 
-    if(CreateDatabase(sqldbcreatingcmd,db,newdatabasename))
+    if(CreateDatabase(sqldbcreatingcmd,conn.GetConn(),newdatabasename))
     {
         string sqltablecreatingcmd=pCmds->GetCreateTablesSqlCommand();
-        QSqlDatabase db2=QSqlDatabase::addDatabase("QPSQL",GetValidConName().c_str());
-        db2.setHostName(db.hostName());
-        db2.setDatabaseName(newdatabasename.c_str());
-        db2.setUserName(db.userName());
-        db2.setPassword(db.password());
-        if(!db2.open())
+        std::string oldDbName=conn.DBName();
+        conn.DBName(newdatabasename);
+
+        if(!conn.GetConn())
         {
             std::cout<<"\nCan not open DataBase "<<newdatabasename<<std::endl;
             std::cout<<"Exist now! Please consult DBA!"<<std::endl;
         }
-        else if(CreateScheme(sqltablecreatingcmd,db2))
+        else if(CreateScheme(sqltablecreatingcmd,conn.GetConn()))
         {
             std::cout<<"DataBase "<<newdatabasename
                     <<" has been completely created successfully."<<std::endl;
         }
         else
         {
-            db2.close();
+            conn.DBName(oldDbName);
             std::string strsql="Drop database ";
             strsql+=newdatabasename;
             strsql+=";\n";
-            DropDatabase(strsql,db);
+            DropDatabase(strsql,conn.GetConn());
             std::cout<<"DataBase "<<newdatabasename
                     <<" creation failed. Please consult DBA!"<<std::endl;
         }
-        if(db2.isOpen())
-        {
-            db2.close();
-        }
-    }
-    if(db.isOpen())
-    {
-        db.close();
     }
     return 0;
 }

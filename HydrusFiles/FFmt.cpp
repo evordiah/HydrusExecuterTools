@@ -20,11 +20,12 @@
 
 #include "FFmt.h"
 
-fwzformat::quote_creator quoter;
-fwzformat::fortranE2_creator fortranE2;
-fwzformat::fortranE3_creator fortranE3;
-fwzformat::SE3_creator SE3;
-fwzformat::SqlValueExpress_creator SqlValueExpression;
+struct fwzformat::quote_creator fwzformat::quoter;
+struct fwzformat::fortranE2_creator fwzformat::fortranE2;
+struct fwzformat::fortranE3_creator fwzformat::fortranE3;
+struct fwzformat::SE3_creator fwzformat::SE3;
+struct fwzformat::SqlValueExpress_creator fwzformat::SqlValueExpression;
+
 
 fwzformat::ffmt_proxy fwzformat::operator<<(std::ostream &os, fwzformat::quote_creator)
 {
@@ -57,46 +58,44 @@ std::ostream &fwzformat::operator<<(const fwzformat::ffmt_proxy &q, const float 
     {
         return q.os<<rhs;
     }
-    else
+    char E='E';
+    int width=q.os.width();
+    float val=rhs;
+    int exp=0;
+    int fac=1;
+    if(val<0)
     {
-        char E='E';
-        int width=q.os.width();
-        float val=rhs;
-        int exp=0;
-        int fac=1;
-        if(val<0)
-        {
-            val*=-1;
-            fac=-1;
-        }
+        val*=-1;
+        fac=-1;
+    }
+    if(val)
+    {
+        for(; val>=1.0; exp++)
+            val/=10;
+        for(; (0.1-val)>std::numeric_limits<float>::epsilon(); exp--)
+            val*=10;
+        val*=fac;
+    }
+    int ew=q._exponentwidth==2?4:5;
+    if(width>=ew)
+    {
+        width-=ew;
+    }
+    char f=q.os.fill();
+    if(!q._bFortranFormat)
+    {
         if(val)
         {
-            for(; val>=1.0; exp++)
-                val/=10;
-            for(; (0.1-val)>std::numeric_limits<float>::epsilon(); exp--)
-                val*=10;
-            val*=fac;
+            val*=10;
+            exp--;
         }
-        int ew=q._exponentwidth==2?4:5;
-        if(width>=ew)
-        {
-            width-=ew;
-        }
-        char f=q.os.fill();
-        if(!q._bFortranFormat)
-        {
-            if(val)
-            {
-                val*=10;
-                exp--;
-            }
-            E='e';
-        }
-        q.os<<std::setw(width)<<val<<E<<std::showpos
-           <<std::setw(q._exponentwidth+1)<<std::setfill('0')<<std::internal<<exp;
-        q.os.unsetf(std::ios_base::internal);
-        return q.os<<std::setfill(f)<<std::noshowpos;
+        E='e';
     }
+    q.os<<std::setw(width)<<val<<E<<std::showpos
+       <<std::setw(q._exponentwidth+1)<<std::setfill('0')<<std::internal<<exp;
+    q.os.unsetf(std::ios_base::internal);
+    return q.os<<std::setfill(f)<<std::noshowpos;
+
 }
 
 std::ostream &fwzformat::operator<<(const fwzformat::ffmt_proxy &q, const double &rhs)
@@ -105,46 +104,43 @@ std::ostream &fwzformat::operator<<(const fwzformat::ffmt_proxy &q, const double
     {
         return q.os<<rhs;
     }
-    else
+    char E='E';
+    int width=q.os.width();
+    double val=rhs;
+    int exp=0;
+    int fac=1;
+    if(val<0)
     {
-        char E='E';
-        int width=q.os.width();
-        double val=rhs;
-        int exp=0;
-        int fac=1;
-        if(val<0)
-        {
-            val*=-1;
-            fac=-1;
-        }
+        val*=-1;
+        fac=-1;
+    }
+    if(val)
+    {
+        for(; val>=1.0; exp++)
+            val/=10;
+        for(; (0.1-val)>std::numeric_limits<double>::epsilon(); exp--)
+            val*=10;
+        val*=fac;
+    }
+    int ew=q._exponentwidth==2?4:5;
+    if(width>=ew)
+    {
+        width-=ew;
+    }
+    char f=q.os.fill();
+    if(!q._bFortranFormat)
+    {
         if(val)
         {
-            for(; val>=1.0; exp++)
-                val/=10;
-            for(; (0.1-val)>std::numeric_limits<double>::epsilon(); exp--)
-                val*=10;
-            val*=fac;
+            val*=10;
+            exp--;
         }
-        int ew=q._exponentwidth==2?4:5;
-        if(width>=ew)
-        {
-            width-=ew;
-        }
-        char f=q.os.fill();
-        if(!q._bFortranFormat)
-        {
-            if(val)
-            {
-                val*=10;
-                exp--;
-            }
-            E='e';
-        }
-        q.os<<std::setw(width)<<val<<E<<std::showpos
-           <<std::setw(q._exponentwidth+1)<<std::setfill('0')<<std::internal<<exp;
-        q.os.unsetf(std::ios_base::internal);
-        return q.os<<std::setfill(f)<<std::noshowpos;
+        E='e';
     }
+    q.os<<std::setw(width)<<val<<E<<std::showpos
+       <<std::setw(q._exponentwidth+1)<<std::setfill('0')<<std::internal<<exp;
+    q.os.unsetf(std::ios_base::internal);
+    return q.os<<std::setfill(f)<<std::noshowpos;
 }
 
 

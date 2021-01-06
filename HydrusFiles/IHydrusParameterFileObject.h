@@ -23,15 +23,18 @@
 
 #include <string>
 
-class QSqlQuery;
+namespace pqxx
+{
+    class connection;
+}
 class IHydrusParameterFileObject
 {
 public:
     virtual operator bool()=0;
     virtual bool Save(const std::string& path)=0;
-    virtual std::string ToSqlStatement(const int gid)=0;
+    virtual std::string ToSqlStatement( int gid)=0;
     virtual bool open(const std::string& filename)=0;
-    virtual bool open(int gid, QSqlQuery &qry)=0;
+    virtual bool open(int gid, pqxx::connection &qry)=0;
 };
 
 #endif // IHYDRUSPARAMETERFILEOBJECT_H

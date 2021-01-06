@@ -29,19 +29,25 @@
 
 namespace  fwzformat
 {
-    class ffmt_proxy;
+    struct ffmt_proxy;
     template<typename Rhs>
     std::ostream & operator<<(ffmt_proxy const& q,Rhs const& rhs);
 }
-class QSqlQuery;
+
+namespace pqxx
+{
+    class connection;
+    class row;
+}
 class HydrusParameterFilesManager;
 
 class TLevelObject:public IHydrusParameterFileObject
 {
-    struct TLevelRecord
+public:
+	struct TLevelRecord
     {
         TLevelRecord(const char* pline);
-        TLevelRecord(QSqlQuery &qry);
+        TLevelRecord(pqxx::row &row);
         double Time;
         double rTop;
         double rRoot;
@@ -70,16 +76,17 @@ class TLevelObject:public IHydrusParameterFileObject
     friend std::ostream & fwzformat::operator<<(fwzformat::ffmt_proxy const& q,Rhs const& rhs);
 public:
     TLevelObject(const std::string& filename,HydrusParameterFilesManager* parent);
-    TLevelObject(int gid, QSqlQuery &qry,HydrusParameterFilesManager* parent);
+    TLevelObject(int gid, pqxx::connection &qry,HydrusParameterFilesManager* parent);
     operator bool()
     {
         return _isValid;
     }
     virtual ~TLevelObject();
     bool Save(const std::string& path);
-    std::string ToSqlStatement(const int gid);
+    bool Save(std::ostream& out);
+    std::string ToSqlStatement( int gid);
     bool open(const std::string& filename);
-    bool open(int gid,QSqlQuery& qry);
+    bool open(int gid,pqxx::connection& qry);
 private:
     bool _isValid;
     std::string _Hed;

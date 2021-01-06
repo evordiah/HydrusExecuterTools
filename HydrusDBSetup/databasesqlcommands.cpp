@@ -18,12 +18,22 @@
  *
  *****************************************************************************/
 
-#include "databasesqlcommands.h"
 #include <sstream>
 #include <iostream>
 #include <limits>
-#include <QFile>
-#include <QTextStream>
+#include "Stringhelper.h"
+#include "databasesqlcommands.h"
+#include "aleveltemplate.h"
+#include "tleveltemplate.h"
+#include "functiontemplate.h"
+#include "dbtemplate.h"
+#include "atmosphtemplate.h"
+#include "nodinfotemplate.h"
+#include "obsnodetemplate.h"
+#include "solutetemplate.h"
+#include "profiletemplate.h"
+#include "selectortemplate.h"
+
 
 DataBaseSQLCommands::DataBaseSQLCommands()
     :_bPartitionTable(false),_tablecnt1(0),_idcnt1(0),_tablecnt2(0),_idcnt2(0),_maxid(0)
@@ -33,34 +43,26 @@ DataBaseSQLCommands::DataBaseSQLCommands()
 DataBaseSQLCommands::DataBaseSQLCommands(const int tablecount, const int gidcount)
     :_tablecnt1(tablecount),_idcnt1(gidcount),_idcnt2(1000),_maxid(std::numeric_limits<int>::max()-1)
 {
-    _bPartitionTable=tablecount>1?true:false;
+    _bPartitionTable=tablecount>1;
     _tablecnt2=int(tablecount*gidcount/1000.0)+1;
 }
 
 std::string DataBaseSQLCommands::GetCreateDbSqlCommand(const std::string& dbname)
 {
-    QFile f(":/dbtemplate/cdbtemplate/dbtemplate");
-    if(f.open(QIODevice::ReadOnly | QIODevice::Text))
+    std::string content(reinterpret_cast<char*>(&dbtemplate[0]),dbtemplate_len);
+    std::stringstream instream(content);
+    std::string line;
+    std::string cmd;
+    while(std::getline(instream,line))
     {
-        QString cmd;
-        QString line;
-        QTextStream stm(&f);
-        while (!stm.atEnd())
+        if(line.back()==';')
         {
-            line=stm.readLine();
-            if(line.back()==';')
-            {
-                cmd.append(line);
-                break;
-            }
-            else
-            {
-                cmd.append(line).append("\n");
-            }
+            cmd.append(line);
+            break;
         }
-        return cmd.arg(dbname.c_str()).toStdString();
+        cmd.append(line).append("\n");
     }
-    return "";
+    return Stringhelper(cmd).arg(dbname).str();
 }
 
 std::string DataBaseSQLCommands::GetCreateTablesSqlCommand()
@@ -127,96 +129,72 @@ std::string DataBaseSQLCommands::GetCreateTablesSqlCommand()
 
 std::string DataBaseSQLCommands::CreateSelector()
 {
-    QFile f(":/dbtemplate/cdbtemplate/selectortemplate");
-    std::vector<QString> Cmds;
-    if(f.open(QIODevice::ReadOnly | QIODevice::Text))
+    std::string cmd;
+    std::string line;
+    std::vector<std::string> Cmds;
+    std::string content(reinterpret_cast<char*>(&selectortemplate[0]),selectortemplate_len);
+    std::stringstream instream(content);
+
+    while (std::getline(instream,line))
     {
-        QString cmd;
-        QString line;
-        QTextStream stm(&f);
-        while (!stm.atEnd())
+        cmd.append(line).append("\n");
+        if(line.back()==';')
         {
-            line=stm.readLine();
-            cmd.append(line).append("\n");
-            if(line.back()==';')
-            {
-                Cmds.push_back(cmd);
-                cmd.clear();
-            }
+            Cmds.push_back(cmd);
+            cmd.clear();
         }
-    }
-    else
-    {
-        return "";
     }
     std::stringstream strbld;
     for(unsigned int i=0;i<Cmds.size();++i)
     {
-        strbld<<Cmds[i].toStdString();
+        strbld<<Cmds[i];
     }
     return strbld.str();
 }
 
 std::string DataBaseSQLCommands::CreateFunction()
 {
-    QFile f(":/dbtemplate/cdbtemplate/functiontemplate");
-    std::vector<QString> Cmds;
-    if(f.open(QIODevice::ReadOnly | QIODevice::Text))
+    std::string cmd;
+    std::string line;
+    std::vector<std::string> Cmds;
+    std::string content(reinterpret_cast<char*>(&functiontemplate[0]),functiontemplate_len);
+    std::stringstream instream(content);
+    while (std::getline(instream,line))
     {
-        QString cmd;
-        QString line;
-        QTextStream stm(&f);
-        while (!stm.atEnd())
+        cmd.append(line).append("\n");
+        if(line.back()==';')
         {
-            line=stm.readLine();
-            cmd.append(line).append("\n");
-            if(line.back()==';')
-            {
-                Cmds.push_back(cmd);
-                cmd.clear();
-            }
+            Cmds.push_back(cmd);
+            cmd.clear();
         }
-    }
-    else
-    {
-        return "";
     }
     std::stringstream strbld;
     for(unsigned int i=0;i<Cmds.size();++i)
     {
-        strbld<<Cmds[i].toStdString();
+        strbld<<Cmds[i];
     }
     return strbld.str();
 }
 
 std::string DataBaseSQLCommands::CreateALevel()
 {
-    QFile f(":/dbtemplate/cdbtemplate/aleveltemplate");
-    std::vector<QString> Cmds;
-    if(f.open(QIODevice::ReadOnly | QIODevice::Text))
+    std::string cmd;
+    std::string line;
+    std::vector<std::string> Cmds;
+    std::string content(reinterpret_cast<char*>(&aleveltemplate[0]),aleveltemplate_len);
+    std::stringstream instream(content);
+    while (std::getline(instream,line))
     {
-        QString cmd;
-        QString line;
-        QTextStream stm(&f);
-        while (!stm.atEnd())
+        cmd.append(line).append("\n");
+        if(line.back()==';')
         {
-            line=stm.readLine();
-            cmd.append(line).append("\n");
-            if(line.back()==';')
-            {
-                Cmds.push_back(cmd);
-                cmd.clear();
-            }
+            Cmds.push_back(cmd);
+            cmd.clear();
         }
-    }
-    else
-    {
-        return "";
     }
     std::stringstream strbld;
     //create table a_level and index
-    strbld<<Cmds[0].toStdString()
-            <<Cmds[1].toStdString();
+    strbld<<Cmds[0]<<Cmds[1];
     if(!_bPartitionTable)
     {
         return strbld.str();
@@ -238,18 +216,18 @@ std::string DataBaseSQLCommands::CreateALevel()
         }
         if(i==1)
         {
-            strbld1<<Cmds[4].arg(startnum).arg(endnum).arg(i).toStdString();
+            strbld1<<Stringhelper(Cmds[4]).arg(startnum).arg(endnum).arg(i).str();
         }
         else
         {
-            strbld1<<Cmds[5].arg(startnum).arg(endnum).arg(i).toStdString();
+            strbld1<<Stringhelper(Cmds[5]).arg(startnum).arg(endnum).arg(i).str();
         }
-        strbld<<Cmds[2].arg(i).arg(i).arg(i).arg(startnum).arg(endnum).toStdString();
-        strbld<<Cmds[3].arg(i).arg(i).toStdString();
+        strbld<<Stringhelper(Cmds[2]).arg(i).arg(i).arg(i).arg(startnum).arg(endnum).str();
+        strbld<<Stringhelper(Cmds[3]).arg(i).arg(i).str();
     }
     for(unsigned int i=6;i<Cmds.size();++i)
     {
-        strbld1<<Cmds[i].toStdString();
+        strbld1<<Cmds[i];
     }
     strbld<<strbld1.str();
     return strbld.str();
@@ -257,32 +235,23 @@ std::string DataBaseSQLCommands::CreateALevel()
 
 std::string DataBaseSQLCommands::CreateTLevel()
 {
-    QFile f(":/dbtemplate/cdbtemplate/tleveltemplate");
-    std::vector<QString> Cmds;
-    if(f.open(QIODevice::ReadOnly | QIODevice::Text))
+    std::string cmd;
+    std::string line;
+    std::vector<std::string> Cmds;
+    std::string content(reinterpret_cast<char*>(&tleveltemplate[0]),tleveltemplate_len);
+    std::stringstream instream(content);
+    while (std::getline(instream,line))
     {
-        QString cmd;
-        QString line;
-        QTextStream stm(&f);
-        while (!stm.atEnd())
+        cmd.append(line).append("\n");
+        if(line.back()==';')
         {
-            line=stm.readLine();
-            cmd.append(line).append("\n");
-            if(line.back()==';')
-            {
-                Cmds.push_back(cmd);
-                cmd.clear();
-            }
+            Cmds.push_back(cmd);
+            cmd.clear();
         }
-    }
-    else
-    {
-        return "";
     }
     std::stringstream strbld;
     //create table t_level and index
-    strbld<<Cmds[0].toStdString()
-            <<Cmds[1].toStdString();
+    strbld<<Cmds[0]<<Cmds[1];
     if(!_bPartitionTable)
     {
         return strbld.str();
@@ -304,18 +273,18 @@ std::string DataBaseSQLCommands::CreateTLevel()
         }
         if(i==1)
         {
-            strbld1<<Cmds[4].arg(startnum).arg(endnum).arg(i).toStdString();
+            strbld1<<Stringhelper(Cmds[4]).arg(startnum).arg(endnum).arg(i).str();
         }
         else
         {
-            strbld1<<Cmds[5].arg(startnum).arg(endnum).arg(i).toStdString();
+            strbld1<<Stringhelper(Cmds[5]).arg(startnum).arg(endnum).arg(i).str();
         }
-        strbld<<Cmds[2].arg(i).arg(i).arg(i).arg(startnum).arg(endnum).toStdString();
-        strbld<<Cmds[3].arg(i).arg(i).toStdString();
+        strbld<<Stringhelper(Cmds[2]).arg(i).arg(i).arg(i).arg(startnum).arg(endnum).str();
+        strbld<<Stringhelper(Cmds[3]).arg(i).arg(i).str();
     }
     for(unsigned int i=6;i<Cmds.size();++i)
     {
-        strbld1<<Cmds[i].toStdString();
+        strbld1<<Cmds[i];
     }
     strbld<<strbld1.str();
     return strbld.str();
@@ -323,32 +292,23 @@ std::string DataBaseSQLCommands::CreateTLevel()
 
 std::string DataBaseSQLCommands::CreateNodeinfo()
 {
-    QFile f(":/dbtemplate/cdbtemplate/nodinfotemplate");
-    std::vector<QString> Cmds;
-    if(f.open(QIODevice::ReadOnly | QIODevice::Text))
+    std::string cmd;
+    std::string line;
+    std::vector<std::string> Cmds;
+    std::string content(reinterpret_cast<char*>(&nodinfotemplate[0]),nodinfotemplate_len);
+    std::stringstream instream(content);
+    while (std::getline(instream,line))
     {
-        QString cmd;
-        QString line;
-        QTextStream stm(&f);
-        while (!stm.atEnd())
+        cmd.append(line).append("\n");
+        if(line.back()==';')
         {
-            line=stm.readLine();
-            cmd.append(line).append("\n");
-            if(line.back()==';')
-            {
-                Cmds.push_back(cmd);
-                cmd.clear();
-            }
+            Cmds.push_back(cmd);
+            cmd.clear();
         }
-    }
-    else
-    {
-        return "";
     }
     std::stringstream strbld;
     //create table nod_info and index
-    strbld<<Cmds[0].toStdString()
-            <<Cmds[1].toStdString();
+    strbld<<Cmds[0]<<Cmds[1];
     if(!_bPartitionTable || _tablecnt2==1)
     {
         return strbld.str();
@@ -370,18 +330,18 @@ std::string DataBaseSQLCommands::CreateNodeinfo()
         }
         if(i==1)
         {
-            strbld1<<Cmds[4].arg(startnum).arg(endnum).arg(i).toStdString();
+            strbld1<<Stringhelper(Cmds[4]).arg(startnum).arg(endnum).arg(i).str();
         }
         else
         {
-            strbld1<<Cmds[5].arg(startnum).arg(endnum).arg(i).toStdString();
+            strbld1<<Stringhelper(Cmds[5]).arg(startnum).arg(endnum).arg(i).str();
         }
-        strbld<<Cmds[2].arg(i).arg(i).arg(i).arg(startnum).arg(endnum).toStdString();
-        strbld<<Cmds[3].arg(i).arg(i).toStdString();
+        strbld<<Stringhelper(Cmds[2]).arg(i).arg(i).arg(i).arg(startnum).arg(endnum).str();
+        strbld<<Stringhelper(Cmds[3]).arg(i).arg(i).str();
     }
     for(unsigned int i=6;i<Cmds.size();++i)
     {
-        strbld1<<Cmds[i].toStdString();
+        strbld1<<Cmds[i];
     }
     strbld<<strbld1.str();
     return strbld.str();
@@ -389,32 +349,23 @@ std::string DataBaseSQLCommands::CreateNodeinfo()
 
 std::string DataBaseSQLCommands::CreateObsNode()
 {
-    QFile f(":/dbtemplate/cdbtemplate/obsnodetemplate");
-    std::vector<QString> Cmds;
-    if(f.open(QIODevice::ReadOnly | QIODevice::Text))
+    std::string cmd;
+    std::string line;
+    std::vector<std::string> Cmds;
+    std::string content(reinterpret_cast<char*>(&obsnodetemplate[0]),obsnodetemplate_len);
+    std::stringstream instream(content);
+    while (std::getline(instream,line))
     {
-        QString cmd;
-        QString line;
-        QTextStream stm(&f);
-        while (!stm.atEnd())
+        cmd.append(line).append("\n");
+        if(line.back()==';')
         {
-            line=stm.readLine();
-            cmd.append(line).append("\n");
-            if(line.back()==';')
-            {
-                Cmds.push_back(cmd);
-                cmd.clear();
-            }
+            Cmds.push_back(cmd);
+            cmd.clear();
         }
-    }
-    else
-    {
-        return "";
     }
     std::stringstream strbld;
     //create table obs_node and index
-    strbld<<Cmds[0].toStdString()
-            <<Cmds[1].toStdString();
+    strbld<<Cmds[0]<<Cmds[1];
     if(!_bPartitionTable || _tablecnt2==1)
     {
         return strbld.str();
@@ -436,18 +387,18 @@ std::string DataBaseSQLCommands::CreateObsNode()
         }
         if(i==1)
         {
-            strbld1<<Cmds[4].arg(startnum).arg(endnum).arg(i).toStdString();
+            strbld1<<Stringhelper(Cmds[4]).arg(startnum).arg(endnum).arg(i).str();
         }
         else
         {
-            strbld1<<Cmds[5].arg(startnum).arg(endnum).arg(i).toStdString();
+            strbld1<<Stringhelper(Cmds[5]).arg(startnum).arg(endnum).arg(i).str();
         }
-        strbld<<Cmds[2].arg(i).arg(i).arg(i).arg(startnum).arg(endnum).toStdString();
-        strbld<<Cmds[3].arg(i).arg(i).toStdString();
+        strbld<<Stringhelper(Cmds[2]).arg(i).arg(i).arg(i).arg(startnum).arg(endnum).str();
+        strbld<<Stringhelper(Cmds[3]).arg(i).arg(i).str();
     }
     for(unsigned int i=6;i<Cmds.size();++i)
     {
-        strbld1<<Cmds[i].toStdString();
+        strbld1<<Cmds[i];
     }
     strbld<<strbld1.str();
     return strbld.str();
@@ -455,34 +406,26 @@ std::string DataBaseSQLCommands::CreateObsNode()
 
 std::string DataBaseSQLCommands::CreateSolute()
 {
-    QFile f(":/dbtemplate/cdbtemplate/solutetemplate");
-    std::vector<QString> Cmds;
-    if(f.open(QIODevice::ReadOnly | QIODevice::Text))
+    std::string cmd;
+    std::string line;
+    std::vector<std::string> Cmds;
+    std::string content(reinterpret_cast<char*>(&solutetemplate[0]),solutetemplate_len);
+    std::stringstream instream(content);
+    while (std::getline(instream,line))
     {
-        QString cmd;
-        QString line;
-        QTextStream stm(&f);
-        while (!stm.atEnd())
+        cmd.append(line).append("\n");
+        if(line.back()==';')
         {
-            line=stm.readLine();
-            cmd.append(line).append("\n");
-            if(line.back()==';')
-            {
-                Cmds.push_back(cmd);
-                cmd.clear();
-            }
+            Cmds.push_back(cmd);
+            cmd.clear();
         }
-    }
-    else
-    {
-        return "";
     }
     std::stringstream strbld;
     //create table solute and index
     for(int i=1;i<=10;++i)
     {
-        strbld<<Cmds[0].arg(i).arg(i).toStdString()
-                <<Cmds[1].arg(i).arg(i).toStdString();
+        strbld<<Stringhelper(Cmds[0]).arg(i).arg(i).str()
+                <<Stringhelper(Cmds[1]).arg(i).arg(i).str();
         if(!_bPartitionTable)
         {
             continue;
@@ -504,21 +447,21 @@ std::string DataBaseSQLCommands::CreateSolute()
             }
             if(j==1)
             {
-                strbld1<<Cmds[4].arg(i).arg(startnum).arg(endnum).arg(i).arg(j).toStdString();
+                strbld1<<Stringhelper(Cmds[4]).arg(i).arg(startnum).arg(endnum).arg(i).arg(j).str();
             }
             else
             {
-                strbld1<<Cmds[5].arg(startnum).arg(endnum).arg(i).arg(j).toStdString();
+                strbld1<<Stringhelper(Cmds[5]).arg(startnum).arg(endnum).arg(i).arg(j).str();
             }
-            strbld<<Cmds[2].arg(i).arg(j).arg(i).arg(j).arg(i).arg(j)
-                    .arg(startnum).arg(endnum).arg(i).toStdString();
-            strbld<<Cmds[3].arg(i).arg(j).arg(i).arg(j).toStdString();
+            strbld<<Stringhelper(Cmds[2]).arg(i).arg(j).arg(i).arg(j).arg(i).arg(j)
+                    .arg(startnum).arg(endnum).arg(i).str();
+            strbld<<Stringhelper(Cmds[3]).arg(i).arg(j).arg(i).arg(j).str();
         }
         for(unsigned int i=6;i<Cmds.size()-1;++i)
         {
-            strbld1<<Cmds[i].toStdString();
+            strbld1<<Cmds[i];
         }
-        strbld1<<Cmds.back().arg(i).arg(i).arg(i).toStdString();
+        strbld1<<Stringhelper(Cmds.back()).arg(i).arg(i).arg(i).str();
         strbld<<strbld1.str();
     }
     return strbld.str();
@@ -526,32 +469,23 @@ std::string DataBaseSQLCommands::CreateSolute()
 
 std::string DataBaseSQLCommands::CreateProfile()
 {
-    QFile f(":/dbtemplate/cdbtemplate/profiletemplate");
-    std::vector<QString> Cmds;
-    if(f.open(QIODevice::ReadOnly | QIODevice::Text))
+    std::string cmd;
+    std::string line;
+    std::vector<std::string> Cmds;
+    std::string content(reinterpret_cast<char*>(&profiletemplate[0]),profiletemplate_len);
+    std::stringstream instream(content);
+    while (std::getline(instream,line))
     {
-        QString cmd;
-        QString line;
-        QTextStream stm(&f);
-        while (!stm.atEnd())
+        cmd.append(line).append("\n");
+        if(line.back()==';')
         {
-            line=stm.readLine();
-            cmd.append(line).append("\n");
-            if(line.back()==';')
-            {
-                Cmds.push_back(cmd);
-                cmd.clear();
-            }
+            Cmds.push_back(cmd);
+            cmd.clear();
         }
-    }
-    else
-    {
-        return "";
     }
     std::stringstream strbld;
     //create table profile and index
-    strbld<<Cmds[0].toStdString()
-            <<Cmds[1].toStdString();
+    strbld<<Cmds[0]<<Cmds[1];
     if(!_bPartitionTable || _tablecnt2==1)
     {
         return strbld.str();
@@ -573,18 +507,18 @@ std::string DataBaseSQLCommands::CreateProfile()
         }
         if(i==1)
         {
-            strbld1<<Cmds[4].arg(startnum).arg(endnum).arg(i).toStdString();
+            strbld1<<Stringhelper(Cmds[4]).arg(startnum).arg(endnum).arg(i).str();
         }
         else
         {
-            strbld1<<Cmds[5].arg(startnum).arg(endnum).arg(i).toStdString();
+            strbld1<<Stringhelper(Cmds[5]).arg(startnum).arg(endnum).arg(i).str();
         }
-        strbld<<Cmds[2].arg(i).arg(i).arg(i).arg(startnum).arg(endnum).toStdString();
-        strbld<<Cmds[3].arg(i).arg(i).toStdString();
+        strbld<<Stringhelper(Cmds[2]).arg(i).arg(i).arg(i).arg(startnum).arg(endnum).str();
+        strbld<<Stringhelper(Cmds[3]).arg(i).arg(i).str();
     }
     for(unsigned int i=6;i<Cmds.size();++i)
     {
-        strbld1<<Cmds[i].toStdString();
+        strbld1<<Cmds[i];
     }
     strbld<<strbld1.str();
     return strbld.str();
@@ -592,32 +526,23 @@ std::string DataBaseSQLCommands::CreateProfile()
 
 std::string DataBaseSQLCommands::CreateAtmosph()
 {
-    QFile f(":/dbtemplate/cdbtemplate/atmosphtemplate");
-    std::vector<QString> Cmds;
-    if(f.open(QIODevice::ReadOnly | QIODevice::Text))
+    std::string cmd;
+    std::string line;
+    std::vector<std::string> Cmds;
+    std::string content(reinterpret_cast<char*>(&atmosphtemplate[0]),atmosphtemplate_len);
+    std::stringstream instream(content);
+    while (std::getline(instream,line))
     {
-        QString cmd;
-        QString line;
-        QTextStream stm(&f);
-        while (!stm.atEnd())
+        cmd.append(line).append("\n");
+        if(line.back()==';')
         {
-            line=stm.readLine();
-            cmd.append(line).append("\n");
-            if(line.back()==';')
-            {
-                Cmds.push_back(cmd);
-                cmd.clear();
-            }
+            Cmds.push_back(cmd);
+            cmd.clear();
         }
-    }
-    else
-    {
-        return "";
     }
     std::stringstream strbld;
     //create table atmosph and index
-    strbld<<Cmds[0].toStdString()
-            <<Cmds[1].toStdString();
+    strbld<<Cmds[0]<<Cmds[1];
     if(!_bPartitionTable)
     {
         return strbld.str();
@@ -639,18 +564,18 @@ std::string DataBaseSQLCommands::CreateAtmosph()
         }
         if(i==1)
         {
-            strbld1<<Cmds[4].arg(startnum).arg(endnum).arg(i).toStdString();
+            strbld1<<Stringhelper(Cmds[4]).arg(startnum).arg(endnum).arg(i).str();
         }
         else
         {
-            strbld1<<Cmds[5].arg(startnum).arg(endnum).arg(i).toStdString();
+            strbld1<<Stringhelper(Cmds[5]).arg(startnum).arg(endnum).arg(i).str();
         }
-        strbld<<Cmds[2].arg(i).arg(i).arg(i).arg(startnum).arg(endnum).toStdString();
-        strbld<<Cmds[3].arg(i).arg(i).toStdString();
+        strbld<<Stringhelper(Cmds[2]).arg(i).arg(i).arg(i).arg(startnum).arg(endnum).str();
+        strbld<<Stringhelper(Cmds[3]).arg(i).arg(i).str();
     }
     for(unsigned int i=6;i<Cmds.size();++i)
     {
-        strbld1<<Cmds[i].toStdString();
+        strbld1<<Cmds[i];
     }
     strbld<<strbld1.str();
     return strbld.str();

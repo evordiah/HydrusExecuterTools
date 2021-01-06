@@ -18,16 +18,15 @@
  *
  *****************************************************************************/
 
-#include <QCoreApplication>
-#include <QtSql/QSql>
-#include <QtSql/QSqlDatabase>
-#include <QSqlQuery>
+#include <pqxx/pqxx>
+#include <regex>
 #include <string>
 #include <tclap/CmdLine.h>
 #include <vector>
-#include <QDir>
+#include <filesystem>
 #include <memory>
 #include <future>
+#include "Stringhelper.h"
 #include "HydrusParameterFilesManager.h"
 
 using namespace std;
@@ -37,17 +36,21 @@ bool _bFinished;
 
 bool ExecuteOperation(const int op,const int gid,void* ppath,void* pqry)
 {
+
     std::string& path=*static_cast<std::string*>(ppath);
-    QSqlQuery& qry=*static_cast<QSqlQuery*>(pqry);
+    pqxx::connection &qry=*static_cast<pqxx::connection *>(pqry);
     HydrusParameterFilesManager h(gid,path,qry);
+    //HydrusParameterFilesManager h(gid,path,qry,3,2,0);
     bool result;
     switch (op)
     {
     case 0:
         result=h.ImportInputFiles();
+        //result=h.ImportResultFiles();
         break;
     case 1:
         result=h.ExportResultFiles();
+        //result=h.ExportInputFiles();
         break;
     case 2:
         result=h.DropResultFiles();
@@ -60,7 +63,7 @@ bool ExecuteOperation(const int op,const int gid,void* ppath,void* pqry)
     return result;
 }
 
-void Execute(const int op,const int gid,const std::string& path,QSqlQuery& qry)
+void Execute(const int op,const int gid,const std::string& path,pqxx::connection * qry)
 {
     _bFinished=false;
     bool result=false;
@@ -71,7 +74,7 @@ void Execute(const int op,const int gid,const std::string& path,QSqlQuery& qry)
     try
     {
         std::future<bool> v=std::async(std::launch::async,ExecuteOperation,op,gid,
-                                       reinterpret_cast<void*>(const_cast<std::string*>(&path)),reinterpret_cast<void*>(&qry));
+                                       reinterpret_cast<void*>(const_cast<std::string*>(&path)),reinterpret_cast<void*>(qry));
         int i=0;
         while (!_bFinished)
         {
@@ -102,14 +105,13 @@ void Execute(const int op,const int gid,const std::string& path,QSqlQuery& qry)
 
 int main(int argc, char *argv[])
 {
-    QCoreApplication _coreapp(argc,argv);
-    
+
     CmdLine cmd("This program is used to import/export  hydrus input or output files into/from database.");
 
     ValueArg<string> dbname("D","dbname","the database name",true,"","string");
     ValueArg<string> user("U","username","the username",true,"","string");
     ValueArg<string> password("P","password","the password",true,"","string");
-    ValueArg<std::string> host("H","hostname","the host name",false,"localhost","string");
+    ValueArg<std::string> host("H","hostname","the host name, for example [127.0.0.1][:5432] or [localhost][:5432]",false,"localhost:5432","string");
 
     SwitchArg argimport("i","import","import the hydrus input files into database");
     SwitchArg argexport("e","export","export the hydrus output files from database");
@@ -141,53 +143,95 @@ int main(int argc, char *argv[])
     //cmd.add(logfile);
 
     cmd.parse(argc,argv);
-
-    QSqlDatabase db=QSqlDatabase::addDatabase("QPSQL","IODB");
-    db.setHostName(host.getValue().c_str());
-    db.setUserName(user.getValue().c_str());
-    db.setDatabaseName(dbname.getValue().c_str());
-    db.setPassword(password.getValue().c_str());
-    if(!db.open())
+    string hostname=host.getValue();
+    string port;
+    auto pos=hostname.find(':');
+    if(pos!=std::string::npos)
+    {
+        port=hostname.substr(pos+1);
+        hostname.erase(pos);
+    }
+    Stringhelper sh(hostname);
+    hostname=sh.trimmed().str();
+    if(hostname.empty())
+    {
+        hostname="localhost";
+    }
+    Stringhelper sp(port);
+    port=sp.trimmed().str();
+    if(port.empty())
+    {
+        port="5432";
+    }
+    else
+    {
+        for(char c:port)
+        {
+            if(!std::isdigit(c))
+            {
+                std::cerr<<port<<" is not a valid port number!"<<std::endl;
+                return 0;
+            }
+        }
+    }
+    std::string connstr="host=";
+    connstr.append(hostname);
+    connstr.append(" dbname=");
+    connstr.append(dbname.getValue());
+    connstr.append(" user=");
+    connstr.append(user.getValue());
+    connstr.append(" password=");
+    connstr.append(password.getValue());
+    connstr.append(" port=");
+    connstr.append(port);
+    std::unique_ptr<pqxx::connection> qry;
+    try
+    {
+        qry=std::make_unique<pqxx::connection>(connstr);
+    }
+    catch (...)
     {
         cout<<"Can't connect database!"<<endl;
         return 0;
     }
-    std::shared_ptr<QSqlQuery> qry(new QSqlQuery(db));
-
 
     if(filepath.isSet() && argimport.getValue())
     {
-        QDir p(filepath.getValue().c_str());
-        std::string abpath = QDir::toNativeSeparators(p.absolutePath()).toStdString();
-        if(!p.exists())
+        std::filesystem::path p=filepath.getValue();
+        std::filesystem::path abpath = std::filesystem::absolute(p);
+        //std::string spath=abpath.native().c_str();
+		std::string spath = abpath.string();
+        if(!std::filesystem::exists(abpath))
         {
-            cerr<<"Not Valid Path:\t"<<abpath<<endl;
+            cerr<<"Not Valid Path:\t"<<spath<<endl;
             return 0;
         }
-        Execute(0,gid.getValue(),abpath,*qry);
+        Execute(0,gid.getValue(),spath,qry.get());
     }
     else if(filepath.isSet() &&  argexport.getValue())
     {
-        QDir p(filepath.getValue().c_str());
-        std::string abpath = QDir::toNativeSeparators(p.absolutePath()).toStdString();
-        if(!p.exists())
+        std::filesystem::path p=filepath.getValue();
+        std::filesystem::path abpath = std::filesystem::absolute(p);
+        //std::string spath=abpath.native().c_str();
+		std::string spath = abpath.string();
+        if(!std::filesystem::exists(abpath))
         {
-            if( !p.mkpath(abpath.c_str()))
+            if( !std::filesystem::create_directories(abpath))
             {
-                cerr<<"Can not create Path"<<abpath<<endl;
+                cerr<<"Can not create Path"<<spath<<endl;
                 return 0;
             }
 
         }
-        Execute(1,gid.getValue(),abpath,*qry);
+        Execute(1,gid.getValue(),spath,qry.get());
     }
     else if(argdropResult.getValue())
     {
-        Execute(2,gid.getValue(),"",*qry);
+        Execute(2,gid.getValue(),"",qry.get());
     }
     else if(argdorpHydruscase.getValue())
     {
-        Execute(3,gid.getValue(),"",*qry);
+        Execute(3,gid.getValue(),"",qry.get());
     }
     else
     {
@@ -195,7 +239,5 @@ int main(int argc, char *argv[])
               "-i or -e need the company of path"
            <<endl;
     }
-    qry->finish();
-    db.close();
     return 0;
 }

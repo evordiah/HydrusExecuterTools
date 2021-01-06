@@ -33,15 +33,26 @@
 #include "BalanceObject.h"
 #include "SoluteObject.h"
 
-class QSqlQuery;
+namespace pqxx
+{
+    class connection;
+}
 
 class HydrusParameterFilesManager
 {
 public:
     friend class SelectorObject;
     friend class TLevelObject;
-    HydrusParameterFilesManager(int gid,const std::string& path,QSqlQuery& qry);
-
+    HydrusParameterFilesManager(int gid,pqxx::connection& qry);
+    HydrusParameterFilesManager(int gid,const std::string& path,pqxx::connection& qry);
+    //just for test============================================================================
+    HydrusParameterFilesManager(int gid, const std::string& path, pqxx::connection& qry,
+                                unsigned int nlayer, unsigned int ns, unsigned int nobs,
+                                const std::string& iobs="", const std::string& status="todo");
+    //=========================================================================================
+    HydrusParameterFilesManager(int gid,const std::string& path,
+                                unsigned int nlayer,unsigned int ns,unsigned int nobs, unsigned int *iobs=nullptr,
+                                const std::string& status="todo");
     bool HasErr() const
     {
         return _err;
@@ -102,7 +113,7 @@ public:
     {
         return _NObs;
     }
-    int ObsNodeIndex(const int index) const
+    unsigned int ObsNodeIndex(const unsigned int index) const
     {
         return _iobs[index];
     }
@@ -116,6 +127,7 @@ public:
     }
     bool ImportInputFiles();
     bool ExportInputFiles();
+    bool ExportInputFiles(std::string& content);
     bool ImportResultFiles();
     bool ExportResultFiles();
     bool DropResultFiles();
@@ -123,15 +135,15 @@ public:
     bool DropInputFiles();
     std::unique_ptr<std::string> GetImportResultFilesSQlStatement();
 private:
-    HydrusParameterFilesManager();
+    HydrusParameterFilesManager(unsigned int nlayer=0, unsigned int ns=0, unsigned int nobs=0, unsigned int *iobs=nullptr,const std::string& status="todo");
     void GetErrMessage(const std::string &filename);
     void OpenInputFiles();
     void OpenResultFiles();
-    bool ParseSqlARRAY(const std::string &value, int *p, int nsize);
+    bool ParseSqlARRAY(const std::string &value, unsigned int *p, unsigned int nsize);
 private:
     std::string _path;
     int _gid;
-    QSqlQuery* _qry;
+    pqxx::connection* _qry;
     bool _isInitial;
 private:
     bool _isValid;
@@ -148,7 +160,7 @@ private:
     int _isecs;
     int _NObs;
     double _CalTm;
-    std::unique_ptr<int[]> _iobs;
+    std::unique_ptr<unsigned int[]> _iobs;
     std::string _LUnit;
     std::string _TUnit;
     std::string _MUnit;

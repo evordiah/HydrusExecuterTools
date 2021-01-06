@@ -1,4 +1,3 @@
-
 /******************************************************************************
  *
  *
@@ -18,17 +17,17 @@
  *
  *****************************************************************************/
 
+#include <memory>
+#include <pqxx/pqxx>
 #include <fstream>
-#include <QString>
-#include <QStringList>
 #include <sstream>
+#include <iostream>
 #include <iomanip>
-#include <QDir>
-#include <QSqlQuery>
-#include <QVariant>
+#include <filesystem>
 #include <regex>
 #include "SelectorObject.h"
 #include "HydrusParameterFilesManager.h"
+#include "Stringhelper.h"
 
 SelectorObject::SelectorObject(const std::string &filename, HydrusParameterFilesManager *parent)
 {
@@ -48,7 +47,7 @@ SelectorObject::SelectorObject(const std::string &filename, HydrusParameterFiles
     }
 }
 
-SelectorObject::SelectorObject(int gid, QSqlQuery &qry, HydrusParameterFilesManager *parent)
+SelectorObject::SelectorObject(int gid, pqxx::connection &qry, HydrusParameterFilesManager *parent)
 {
     _parent=parent;
     Initial();
@@ -60,7 +59,7 @@ SelectorObject::SelectorObject(int gid, QSqlQuery &qry, HydrusParameterFilesMana
         _parent->_NObs=_NObs;
         if(_NObs)
         {
-            _parent->_iobs.reset(new int[_NObs]);
+            _parent->_iobs = std::make_unique<unsigned int[]>(_NObs);
             for(int i=0;i<_NObs;++i)
             {
                 _parent->_iobs[i]=_iObs[i];
@@ -77,7 +76,6 @@ SelectorObject::SelectorObject(int gid, QSqlQuery &qry, HydrusParameterFilesMana
 
 SelectorObject::~SelectorObject()
 {
-
 }
 
 bool SelectorObject::Save(const std::string &path)
@@ -86,17 +84,15 @@ bool SelectorObject::Save(const std::string &path)
     {
         return false;
     }
-    QString p=path.c_str();
-    QDir dir(p);
-    if(!dir.exists())
+    std::filesystem::path p=path;
+    if(!std::filesystem::exists(p))
     {
-        if(!dir.mkpath(p))
+        if(!std::filesystem::create_directories(p))
         {
             return false;
         }
     }
-    p=dir.absoluteFilePath("SELECTOR.IN");
-    std::ofstream out(p.toStdString());
+    std::ofstream out((std::filesystem::absolute(p) / "SELECTOR.IN").string());
     if(!out)
     {
         return false;
@@ -126,6 +122,39 @@ bool SelectorObject::Save(const std::string &path)
         return false;
     }
     out.close();
+    return true;
+}
+
+bool SelectorObject::Save(std::ostream &out)
+{
+    if(!_isValid || !out)
+    {
+        return false;
+    }
+    if(!SaveBlockA(out))
+    {
+        return false;
+    }
+    if(!SaveBlockB(out))
+    {
+        return false;
+    }
+    if(!SaveBlockC(out))
+    {
+        return false;
+    }
+    if(!SaveBlockD(out))
+    {
+        return false;
+    }
+    if(!SaveBlockF(out))
+    {
+        return false;
+    }
+    if(!SaveBlockG(out))
+    {
+        return false;
+    }
     return true;
 }
 
@@ -294,175 +323,181 @@ bool SelectorObject::open(const std::string &filename)
     return true;
 }
 
-bool SelectorObject::open(int gid, QSqlQuery &qry)
+bool SelectorObject::open(int gid, pqxx::connection &qry)
 {
-    QString sqlcmd=QString("select lunit, tunit, munit, lwat, lchem,"
-                           "lsink, lroot, lshort, lequil, nmat, nlay, cosalpha,"
-                           "maxit, tolth, tolh, wlayer, linitw, ha, hb,imodel, matpar,"
-                           "dt, dtmin,dtmax, dmul, dmul2, itmin, itmax, mpl, tinit,tmax,"
-                           "lprint, nprintsteps, tprintinterval,tprint,"
-                           "ngrowth, tgrowth,  rootdepth,"
-                           "epsi, lupw, lartd, ctola, ctolr, maxitc, pecr, ns, ltort,"
-                           "lfiltr, nchpar, inonequal, lmassini, leqinit, ltorta, chpar1,"
-                           "chpar2, chpar3,ktopch, ctop, kbotch, cbot, dsurf, catm, tpulse,"
-                           "crootmax,omegac, p0, p2h, p2l, p3,  r2h, r2l,poptm,"
-                           "maxal,hcrits,nobs,iobs,numnp,status,caltm "
-                           "from selector where gid = %1 ;").arg(gid);
-    if(!qry.exec(sqlcmd))
+    std::string sqlcmd("select lunit, tunit, munit, lwat, lchem,"
+                       "lsink, lroot, lshort, lequil, nmat, nlay, cosalpha,"
+                       "maxit, tolth, tolh, wlayer, linitw, ha, hb,imodel, matpar,"
+                       "dt, dtmin,dtmax, dmul, dmul2, itmin, itmax, mpl, tinit,tmax,"
+                       "lprint, nprintsteps, tprintinterval,tprint,"
+                       "ngrowth, tgrowth,  rootdepth,"
+                       "epsi, lupw, lartd, ctola, ctolr, maxitc, pecr, ns, ltort,"
+                       "lfiltr, nchpar, inonequal, lmassini, leqinit, ltorta, chpar1,"
+                       "chpar2, chpar3,ktopch, ctop, kbotch, cbot, dsurf, catm, tpulse,"
+                       "crootmax,omegac, p0, p2h, p2l, p3,  r2h, r2l,poptm,"
+                       "maxal,hcrits,nobs,iobs,numnp,status,caltm "
+                       "from selector where gid = $1 ;");
+    try
     {
+        pqxx::work w(qry);
+        pqxx::row r=w.exec_params1(sqlcmd,gid);
+        w.commit();
+        _LUnit=r[0].as<std::string>();
+        _TUnit=r[1].as<std::string>();
+        _MUnit=r[2].as<std::string>();
+        lWat=r[3].as<bool>();
+        lChem=r[4].as<bool>();
+        SinkF=r[5].as<bool>();
+        lRoot=r[6].as<bool>();
+        ShortO=r[7].as<bool>();
+        lEquil=r[8].as<bool>();
+        NMat=r[9].as<int>();
+        NLay=r[10].as<int>();
+        CosAlf=r[11].as<double>();
+        MaxIt=r[12].as<int>();
+        TolTh=r[13].as<double>();
+        TolH=r[14].as<double>();
+        WLayer=r[15].as<bool>();
+        lInitW=r[16].as<bool>();
+        hTab1=r[17].as<double>();
+        hTabN=r[18].as<double>();
+        iModel=r[19].as<int>();
+        _MatPars = std::make_unique<double[]>(6*NMat);
+        if(!ParseSqlARRAY(r[20].as<std::string>(),_MatPars.get(),6*NMat))
+        {
+            return false;
+        }
+        dt=r[21].as<double>();
+        dtMin=r[22].as<double>();
+        dtMax=r[23].as<double>();
+        dMul=r[24].as<double>();
+        dMul2=r[25].as<double>();
+        ItMin=r[26].as<int>();
+        ItMax=r[27].as<int>();
+        MPL=r[28].as<int>();
+        tInit=r[29].as<double>();
+        tMax=r[30].as<double>();
+        lPrintD=r[31].as<bool>();
+        nPrintSteps=r[32].as<int>();
+        tPrintInterval=r[33].as<double>();
+        if(MPL)
+        {
+            _TPrint = std::make_unique<double[]>(MPL);
+            if(!ParseSqlARRAY(r[34].as<std::string>(),_TPrint.get(),MPL))
+            {
+                return false;
+            }
+        }
+        if(lRoot)
+        {
+            nGrowth=r[35].as<int>();
+            _tGrowth = std::make_unique<double[]>(nGrowth);
+            _RootDepth = std::make_unique<double[]>(nGrowth);
+            if(!ParseSqlARRAY(r[36].as<std::string>(),_tGrowth.get(),nGrowth))
+            {
+                return false;
+            }
+            if(!ParseSqlARRAY(r[37].as<std::string>(),_RootDepth.get(),nGrowth))
+            {
+                return false;
+            }
+        }
+        if(lChem)
+        {
+            epsi=r[38].as<double>();
+            lUpW=r[39].as<bool>();
+            lArtD=r[40].as<bool>();
+            cTolA=r[41].as<double>();
+            cTolR=r[42].as<double>();
+            MaxItC=r[43].as<int>();
+            PeCr=r[44].as<double>();
+            NS=r[45].as<int>();
+            lTort=r[46].as<bool>();
+            lFiltr=r[47].as<bool>();
+            nChPar=r[48].as<int>();
+            iNonEqul=r[49].as<int>();
+            lMassIni=r[50].as<bool>();
+            lEqInit=r[51].as<bool>();
+            lTortA=r[52].as<bool>();
+            _ChPart1 = std::make_unique<double[]>(NMat*4);
+            if(!ParseSqlARRAY(r[53].as<std::string>(),_ChPart1.get(),NMat*4))
+            {
+                return false;
+            }
+            _ChPart2 = std::make_unique<double[]>(NS*2);
+            if(!ParseSqlARRAY(r[54].as<std::string>(),_ChPart2.get(),NS*2))
+            {
+                return false;
+            }
+            _ChPart3 = std::make_unique<double[]>(NMat*NS*14);
+            if(!ParseSqlARRAY(r[55].as<std::string>(),_ChPart3.get(),NMat*NS*14))
+            {
+                return false;
+            }
+            kTopCh=r[56].as<int>();
+            _InitialTopCon = std::make_unique<double[]>(NS);
+            if(!ParseSqlARRAY(r[57].as<std::string>(),_InitialTopCon.get(),NS))
+            {
+                return false;
+            }
+            kBotCh=r[58].as<int>();
+            _InitialBotCon = std::make_unique<double[]>(NS);
+            if(!ParseSqlARRAY(r[59].as<std::string>(),_InitialBotCon.get(),NS))
+            {
+                return false;
+            }
+            if(kTopCh==-2)
+            {
+                dSurf=r[60].as<double>();
+                cAtm=r[61].as<double>();
+            }
+            tPulse=r[62].as<double>();
+        }
+        if(SinkF)
+        {
+            if(NS)
+            {
+                _CRootMax = std::make_unique<double[]>(NS);
+                if(!ParseSqlARRAY(r[63].as<std::string>(),_CRootMax.get(),NS))
+                {
+                    return false;
+                }
+            }
+            OmegaC=r[64].as<double>();
+            P0=r[65].as<double>();
+            P2H=r[66].as<double>();
+            P2L=r[67].as<double>();
+            P3=r[68].as<double>();
+            r2H=r[69].as<double>();
+            r2L=r[70].as<double>();
+            _POptm = std::make_unique<double[]>(NMat);
+            if(!ParseSqlARRAY(r[71].as<std::string>(),_POptm.get(),NMat))
+            {
+                return false;
+            }
+        }
+        _MaxAl=r[72].as<int>();
+        _hCritS=r[73].as<double>();
+        _NObs=r[74].as<int>();
+        if(_NObs)
+        {
+            _iObs = std::make_unique<int[]>(_NObs);
+            if(!ParseSqlARRAY(r[75].as<std::string>(),_iObs.get(),_NObs))
+            {
+                return false;
+            }
+        }
+        _NumNP=r[76].as<int>();
+        _status=r[77].as<std::string>();
+        if(!r[78].is_null())
+        {
+            _CalTm=r[78].as<double>();
+        }
+    }
+    catch (std::exception& e)
+    {
+        std::cerr<<e.what()<<std::endl;
         return false;
-    }
-    if(!qry.next())
-    {
-        return false;
-    }
-    _LUnit=qry.value(0).toString().toStdString();
-    _TUnit=qry.value(1).toString().toStdString();
-    _MUnit=qry.value(2).toString().toStdString();
-    lWat=qry.value(3).toBool();
-    lChem=qry.value(4).toBool();
-    SinkF=qry.value(5).toBool();
-    lRoot=qry.value(6).toBool();
-    ShortO=qry.value(7).toBool();
-    lEquil=qry.value(8).toBool();
-    NMat=qry.value(9).toInt();
-    NLay=qry.value(10).toInt();
-    CosAlf=qry.value(11).toDouble();
-    MaxIt=qry.value(12).toInt();
-    TolTh=qry.value(13).toDouble();
-    TolH=qry.value(14).toDouble();
-    WLayer=qry.value(15).toBool();
-    lInitW=qry.value(16).toBool();
-    hTab1=qry.value(17).toDouble();
-    hTabN=qry.value(18).toDouble();
-    iModel=qry.value(19).toInt();
-    _MatPars.reset(new double[6*NMat]);
-    if(!ParseSqlARRAY(qry.value(20).toString().toStdString(),_MatPars.get(),6*NMat))
-    {
-        return false;
-    }
-    dt=qry.value(21).toDouble();
-    dtMin=qry.value(22).toDouble();
-    dtMax=qry.value(23).toDouble();
-    dMul=qry.value(24).toDouble();
-    dMul2=qry.value(25).toDouble();
-    ItMin=qry.value(26).toInt();
-    ItMax=qry.value(27).toInt();
-    MPL=qry.value(28).toInt();
-    tInit=qry.value(29).toDouble();
-    tMax=qry.value(30).toDouble();
-    lPrintD=qry.value(31).toBool();
-    nPrintSteps=qry.value(32).toInt();
-    tPrintInterval=qry.value(33).toDouble();
-    if(MPL)
-    {
-        _TPrint.reset(new double[MPL]);
-        if(!ParseSqlARRAY(qry.value(34).toString().toStdString(),_TPrint.get(),MPL))
-        {
-            return false;
-        }
-    }
-    if(lRoot)
-    {
-        nGrowth=qry.value(35).toInt();
-        _tGrowth.reset(new double[nGrowth]);
-        _RootDepth.reset(new double[nGrowth]);
-        if(!ParseSqlARRAY(qry.value(36).toString().toStdString(),_tGrowth.get(),nGrowth))
-        {
-            return false;
-        }
-        if(!ParseSqlARRAY(qry.value(37).toString().toStdString(),_RootDepth.get(),nGrowth))
-        {
-            return false;
-        }
-    }
-    if(lChem)
-    {
-        epsi=qry.value(38).toDouble();
-        lUpW=qry.value(39).toBool();
-        lArtD=qry.value(40).toBool();
-        cTolA=qry.value(41).toDouble();
-        cTolR=qry.value(42).toDouble();
-        MaxItC=qry.value(43).toInt();
-        PeCr=qry.value(44).toDouble();
-        NS=qry.value(45).toInt();
-        lTort=qry.value(46).toBool();
-        lFiltr=qry.value(47).toBool();
-        nChPar=qry.value(48).toInt();
-        iNonEqul=qry.value(49).toInt();
-        lMassIni=qry.value(50).toBool();
-        lEqInit=qry.value(51).toBool();
-        lTortA=qry.value(52).toBool();
-        _ChPart1.reset(new double[NMat*4]);
-        if(!ParseSqlARRAY(qry.value(53).toString().toStdString(),_ChPart1.get(),NMat*4))
-        {
-            return false;
-        }
-        _ChPart2.reset(new double[NS*2]);
-        if(!ParseSqlARRAY(qry.value(54).toString().toStdString(),_ChPart2.get(),NS*2))
-        {
-            return false;
-        }
-        _ChPart3.reset(new double[NMat*NS*14]);
-        if(!ParseSqlARRAY(qry.value(55).toString().toStdString(),_ChPart3.get(),NMat*NS*14))
-        {
-            return false;
-        }
-        kTopCh=qry.value(56).toInt();
-        _InitialTopCon.reset(new double[NS]);
-        if(!ParseSqlARRAY(qry.value(57).toString().toStdString(),_InitialTopCon.get(),NS))
-        {
-            return false;
-        }
-        kBotCh=qry.value(58).toInt();
-        _InitialBotCon.reset(new double[NS]);
-        if(!ParseSqlARRAY(qry.value(59).toString().toStdString(),_InitialBotCon.get(),NS))
-        {
-            return false;
-        }
-        if(kTopCh==-2)
-        {
-            dSurf=qry.value(60).toDouble();
-            cAtm=qry.value(61).toDouble();
-        }
-        tPulse=qry.value(62).toDouble();
-    }
-    if(SinkF)
-    {
-        _CRootMax.reset(new double[NS]);
-        if(!ParseSqlARRAY(qry.value(63).toString().toStdString(),_CRootMax.get(),NS))
-        {
-            return false;
-        }
-        OmegaC=qry.value(64).toDouble();
-        P0=qry.value(65).toDouble();
-        P2H=qry.value(66).toDouble();
-        P2L=qry.value(67).toDouble();
-        P3=qry.value(68).toDouble();
-        r2H=qry.value(69).toDouble();
-        r2L=qry.value(70).toDouble();
-        _POptm.reset(new double[NMat]);
-        if(!ParseSqlARRAY(qry.value(71).toString().toStdString(),_POptm.get(),NMat))
-        {
-            return false;
-        }
-    }
-    _MaxAl=qry.value(72).toInt();
-    _hCritS=qry.value(73).toDouble();
-    _NObs=qry.value(74).toInt();
-    if(_NObs)
-    {
-        _iObs.reset(new int[_NObs]);
-        if(!ParseSqlARRAY(qry.value(75).toString().toStdString(),_iObs.get(),_NObs))
-        {
-            return false;
-        }
-    }
-    _NumNP=qry.value(76).toInt();
-    _status=qry.value(77).toString().toStdString();
-    if(!qry.value(78).isNull())
-    {
-        _CalTm=qry.value(78).toDouble();
     }
     return true;
 }
@@ -502,7 +537,7 @@ void SelectorObject::UpdateObsInfo()
     _parent->_NObs=_NObs;
     if(_NObs)
     {
-        _parent->_iobs.reset(new int[_NObs]);
+        _parent->_iobs = std::make_unique<unsigned int[]>(_NObs);
         for(int i=0;i<_NObs;++i)
         {
             _parent->_iobs[i]=_iObs[i];
@@ -512,54 +547,51 @@ void SelectorObject::UpdateObsInfo()
 
 bool SelectorObject::ParseLine(const std::string &line, const std::string &lineformat, const std::vector<void *>& values)
 {
-    QString l(line.c_str());
-    l=l.simplified();
-    QStringList lst=l.split(' ');
-    QString f(lineformat.c_str());
-    QStringList format=f.split(',');
+    Stringhelper l(line);
+    l.simplified();
+    auto lst=l.split(' ');
+    Stringhelper f(lineformat);
+    auto format=f.split(',');
     if(lst.size()<format.size())
     {
         return false;
     }
-    for(int i=0;i<format.size();++i)
+    try
     {
-        if (format[i]=="bool")
+        for(size_t i=0;i<format.size();++i)
         {
-            if(lst[i]=="f" || lst[i]=="F")
+            if (format[i]=="bool")
             {
-                *reinterpret_cast<bool*>(values[i])=false;
+                if(lst[i]=="f" || lst[i]=="F")
+                {
+                    *reinterpret_cast<bool*>(values[i])=false;
+                }
+                else if(lst[i]=="t" || lst[i]=="T")
+                {
+                    *reinterpret_cast<bool*>(values[i])=true;
+                }
+                else
+                {
+                    return false;
+                }
             }
-            else if(lst[i]=="t" || lst[i]=="T")
+            else if(format[i]=="int")
             {
-                *reinterpret_cast<bool*>(values[i])=true;
+                *reinterpret_cast<int*>(values[i])=std::stoi(lst[i]);
+            }
+            else if(format[i]=="double")
+            {
+                *reinterpret_cast<double*>(values[i])=std::stod(lst[i]);
             }
             else
             {
                 return false;
             }
         }
-        else if(format[i]=="int")
-        {
-            bool bok;
-            *reinterpret_cast<int*>(values[i])=lst[i].toInt(&bok);
-            if(!bok)
-            {
-                return false;
-            }
-        }
-        else if(format[i]=="double")
-        {
-            bool bok;
-            *reinterpret_cast<double*>(values[i])=lst[i].toDouble(&bok);
-            if(!bok)
-            {
-                return false;
-            }
-        }
-        else
-        {
-            return false;
-        }
+    }
+    catch(...)
+    {
+        return false;
     }
     return true;
 }
@@ -569,12 +601,19 @@ bool SelectorObject::ReadBlockA(std::istream &in)
     std::string line;
     //line 0 --HYDRUS-1D version
     std::getline(in,line);
-    QString qs(line.c_str());
-    qs=qs.trimmed();
+    Stringhelper qs(line);
+    qs.trimmed();
     if(qs.startsWith("Pcp_File_Version="))
     {
-        double version=qs.mid(17).toDouble();
-        if(version<4)
+        try
+        {
+            double version=std::stod(qs.str().substr(17));
+            if(version<4)
+            {
+                return false;
+            }
+        }
+        catch(...)
         {
             return false;
         }
@@ -588,7 +627,7 @@ bool SelectorObject::ReadBlockA(std::istream &in)
     std::getline(in,line);
     //line 3--Heading.
     std::getline(in,line);
-    _Hed=QString(line.c_str()).trimmed().toStdString();
+    _Hed=Stringhelper(line).trimmed().str();
     //line 4--Comment lines.
     std::getline(in,line);
     //line 5--Length unit (e.g., 'cm').
@@ -645,11 +684,7 @@ bool SelectorObject::ReadBlockA(std::istream &in)
     //line 13
     std::getline(in,line);
     std::vector<void*> pValue13={&NMat,&NLay,&CosAlf};
-    if(!ParseLine(line,"int,int,double",pValue13))
-    {
-        return false;
-    }
-    return true;
+    return ParseLine(line,"int,int,double",pValue13);
 }
 
 bool SelectorObject::ReadBlockB(std::istream &in)
@@ -716,12 +751,12 @@ bool SelectorObject::ReadBlockB(std::istream &in)
     //line 16--Comment lines.
     std::getline(in,line);
     //line 17
-    _MatPars.reset(new double[NMat*6]);
+    _MatPars = std::make_unique<double[]>(NMat*6);
     std::vector<void*> pValue17={nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
     double *pp=_MatPars.get();
     for(int i=0;i<NMat;++i)
     {
-        for(int j=0;j<6;j++)
+        for(size_t j=0;j<6;j++)
         {
             pValue17[j]=pp+i*6+j;
         }
@@ -769,23 +804,25 @@ bool SelectorObject::ReadBlockC(std::istream &in)
     {
         //line 8--Comment line.
         std::getline(in,line);
-        _TPrint.reset(new double[MPL]);
+        _TPrint = std::make_unique<double[]>(MPL);
         int i=0;
         while(i<MPL)
         {
             //line 9
             std::getline(in,line);
-            QString s(line.c_str());
-            s=s.simplified();
-            QStringList sl=s.split(' ');
-            for(int j=0;j<sl.size();++j)
+            Stringhelper s(line);
+            s.simplified();
+            auto sl=s.split(' ');
+            try
             {
-                bool bok;
-                _TPrint[i++]=sl[j].toDouble(&bok);
-                if(!bok)
+                for(size_t j=0;j<sl.size();++j)
                 {
-                    return false;
+                    _TPrint[i++]=std::stod(sl[j]);
                 }
+            }
+            catch(...)
+            {
+                return false;
             }
         }
     }
@@ -817,21 +854,23 @@ bool SelectorObject::ReadBlockD(std::istream &in)
     //line 6--Comment lines.
     std::getline(in,line);
     //line 7
-    _tGrowth.reset(new double[nGrowth]);
-    _RootDepth.reset(new double[nGrowth]);
-    for(int i=0;i<nGrowth;++i)
+    _tGrowth = std::make_unique<double[]>(nGrowth);
+    _RootDepth = std::make_unique<double[]>(nGrowth);
+    try
     {
-        std::getline(in,line);
-        QString s(line.c_str());
-        s=s.simplified();
-        QStringList sl=s.split(' ');
-        bool bok1,bok2;
-        _tGrowth[i]=sl[0].toDouble(&bok1);
-        _RootDepth[i]=sl[1].toDouble(&bok2);
-        if(!bok1 || !bok2)
+        for(int i=0;i<nGrowth;++i)
         {
-            return false;
+            std::getline(in,line);
+            Stringhelper s(line.c_str());
+            s.simplified();
+            auto sl=s.split(' ');
+            _tGrowth[i]=std::stod(sl[0]);
+            _RootDepth[i]=std::stod(sl[1]);
         }
+    }
+    catch(...)
+    {
+        return false;
     }
     return true;
 }
@@ -878,12 +917,12 @@ bool SelectorObject::ReadBlockF(std::istream &in)
     //line 6--Comment lines.
     std::getline(in,line);
     //line 7
-    _ChPart1.reset(new double[4*NMat]);
+    _ChPart1 = std::make_unique<double[]>(4*NMat);
     std::vector<void*> pValue7={nullptr,nullptr,nullptr,nullptr};
     double *pp=_ChPart1.get();
     for(int i=0;i<NMat;++i)
     {
-        for(int j=0;j<4;j++)
+        for(size_t j=0;j<4;j++)
         {
             pValue7[j]=pp+i*4+j;
         }
@@ -893,78 +932,63 @@ bool SelectorObject::ReadBlockF(std::istream &in)
             return false;
         }
     }
-    _ChPart2.reset(new double[2*NS]);
-    _ChPart3.reset(new double[14*NMat*NS]);
-    for (int i=0;i<NS;++i)
+    _ChPart2 = std::make_unique<double[]>(2*NS);
+    _ChPart3 = std::make_unique<double[]>(14*NMat*NS);
+    try
     {
-        //line 8--Comment lines.
-        std::getline(in,line);
-        //line 9
-        std::getline(in,line);
-        pp=_ChPart2.get()+2*i;
-        std::vector<void*> pValue9={pp,pp+1};
-        if(!ParseLine(line,"double,double",pValue9))
+        for (int i=0;i<NS;++i)
         {
-            return false;
-        }
-        //line 10--Comment line
-        std::getline(in,line);
-        //line 11
-        pp=_ChPart3.get()+(14*NMat)*i;
-        for (int j=0;j<NMat;++j)
-        {
+            //line 8--Comment lines.
             std::getline(in,line);
-            QString s(line.c_str());
-            s=s.simplified();
-            QStringList sl=s.split(' ');
-            for(int k=0;k<sl.size();++k)
+            //line 9
+            std::getline(in,line);
+            pp=_ChPart2.get()+2*i;
+            std::vector<void*> pValue9={pp,pp+1};
+            if(!ParseLine(line,"double,double",pValue9))
             {
-                bool bok;
-                pp[k]=sl[k].toDouble(&bok);
-                if(!bok)
-                {
-                    return false;
-                }
+                return false;
             }
-            pp+=14;
+            //line 10--Comment line
+            std::getline(in,line);
+            //line 11
+            pp=_ChPart3.get()+(14*NMat)*i;
+            for (int j=0;j<NMat;++j)
+            {
+                std::getline(in,line);
+                Stringhelper s(line);
+                s.simplified();
+                auto sl=s.split(' ');
+                for(size_t k=0;k<sl.size();++k)
+                {
+                    pp[k]=std::stod(sl[k]);
+                }
+                pp+=14;
+            }
         }
+    }
+    catch(...)
+    {
+        return false;
     }
     //line 23--Comment line
     std::getline(in,line);
     //line 24
     std::getline(in,line);
-    _InitialTopCon.reset(new double[NS]);
-    _InitialBotCon.reset(new double[NS]);
-    QString s(line.c_str());
-    s=s.simplified();
-    QStringList sl=s.split(' ');
-    bool bok;
+    _InitialTopCon = std::make_unique<double[]>(NS);
+    _InitialBotCon = std::make_unique<double[]>(NS);
+    Stringhelper s(line);
+    s.simplified();
+    auto sl=s.split(' ');
     int j=0;
-    kTopCh=sl[j++].toInt(&bok);
-    if(!bok)
-    {
-        return false;
-    }
+    kTopCh=std::stoi(sl[j++]);
     for(int i=0;i<NS;++i)
     {
-        _InitialTopCon[i]=sl[j++].toDouble(&bok);
-        if(!bok)
-        {
-            return false;
-        }
+        _InitialTopCon[i]=std::stod(sl[j++]);
     }
-    kBotCh=sl[j++].toInt(&bok);
-    if(!bok)
-    {
-        return false;
-    }
+    kBotCh=std::stoi(sl[j++]);
     for(int i=0;i<NS;++i)
     {
-        _InitialBotCon[i]=sl[j++].toDouble(&bok);
-        if(!bok)
-        {
-            return false;
-        }
+        _InitialBotCon[i]=std::stod(sl[j++]);
     }
     if(kTopCh==-2)
     {
@@ -999,33 +1023,23 @@ bool SelectorObject::ReadBlockG(std::istream &in)
     //line 3
     if(NS)
     {
-        _CRootMax.reset(new double[NS]);
+        _CRootMax = std::make_unique<double[]>(NS);
     }
     std::getline(in,line);
-    QString s(line.c_str());
-    s=s.simplified();
-    QStringList sl=s.split(' ');
-    bool bok;
+    Stringhelper s(line);
+    s.simplified();
+    auto sl=s.split(' ');
     int i=0;
-    iMoSink=sl[i++].toInt(&bok);
-    if(!bok || iMoSink!=0)
+    iMoSink=std::stoi(sl[i++]);
+    if(iMoSink!=0)
     {
         return false;
     }
     for(int j=0;j<NS;++j)
     {
-        bool bok;
-        _CRootMax[j]=sl[i++].toDouble(&bok);
-        if(!bok)
-        {
-            return false;
-        }
+        _CRootMax[j]=std::stod(sl[i++]);
     }
-    OmegaC=sl[i].toDouble(&bok);
-    if(!bok)
-    {
-        return false;
-    }
+    OmegaC=std::stod(sl[i]);
     //line 4--Comment lines.
     std::getline(in,line);
     //line 5
@@ -1038,19 +1052,14 @@ bool SelectorObject::ReadBlockG(std::istream &in)
     //line 6--Comment lines.
     std::getline(in,line);
     //line 7
-    _POptm.reset(new double[NMat]);
+    _POptm = std::make_unique<double[]>(NMat);
     std::getline(in,line);
-    QString s1(line.c_str());
-    s1=s1.simplified();
-    QStringList sl1=s1.split(' ');
-    for(int j=0;j<sl1.size();++j)
+    Stringhelper s1(line);
+    s1.simplified();
+    auto sl1=s1.split(' ');
+    for(size_t j=0;j<sl1.size();++j)
     {
-        bool bok;
-        _POptm[j]=sl1[j].toDouble(&bok);
-        if(!bok)
-        {
-            return false;
-        }
+        _POptm[j]=std::stod(sl1[j]);
     }
     if(lChem)
     {
@@ -1058,9 +1067,9 @@ bool SelectorObject::ReadBlockG(std::istream &in)
         std::getline(in,line);
         //line 9
         std::getline(in,line);
-        QString s(line.c_str());
-        s=s.simplified();
-        if(s=="f" || s=="F")
+        Stringhelper s(line);
+        s.simplified();
+        if(s.compare("f",false)==0)
         {
             lSolRed=false;
         }

@@ -1,22 +1,19 @@
 Basic Installation
 ==================
 
+I provide Makefile for compiling on Linux and CMakeLists.txt for compiling on Windows.
+
 The simplest way to compile this package is:
 
 --------------------------------On Linux---------------------------------------------------------
-  1. `cd' to the directory containing the package's source code and type
-     `qmake HydrusExecuteTool.pro' to produce Makefile.  
+  1. `cd' to the directory containing the package's source code.  
 
   2. Type `make' to compile the package.
 
   3. You can remove the program binaries and object files from the
      source code directory by typing `make distclean'.  
 
-  4. The software requires some shared object files, including libqsqlpsql.so, libpq.so,
-     libQt5Core, and libQt5Sql. The lib subdirectory contains libpq.so, libQt5Core.so, 
-     libQt5Sql.so, libqsqlpsql.so and linked files. You can recompile all the files, 
-     but keep the structure of the bin directory, otherwise you will have to change 
-     the PRO file to reflect the new state.
+  4. The software requires libpq.so.  
 
 ---------------------------------On Windows------------------------------------------------------
 1. `cd' to the directory containing the package's source code and type
